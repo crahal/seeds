@@ -1,7 +1,9 @@
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import seaborn as sns
+import pandas as pd
 import numpy as np
+import ast
 import os
 
 def ffc_plotter(df, figure_path):
@@ -117,3 +119,27 @@ class SeabornFig2Grid():
 
     def _resize(self, evt=None):
         self.sg.fig.set_size_inches(self.fig.get_size_inches())
+
+
+def load_sympt(filename):
+    def try_literal_eval(e):
+        try:
+            return ast.literal_eval(e)
+        except ValueError:
+            return [np.nan, np.nan, np.nan, np.nan, np.nan]
+
+    df = pd.read_csv(os.path.join(os.getcwd(), '..', 'data', 'symptomtracker',
+                                  filename), index_col=0)
+    df['roc_auc'] = df['roc_auc'].apply(try_literal_eval)
+    df['roc_auc_mean'] = np.mean(df['roc_auc'].tolist(), axis=1)
+    mylist = df['roc_auc'].to_list()
+    flat_list = [item for sublist in mylist for item in sublist]
+    return flat_list
+
+
+def covid_plotter(list1, list2, list3, list4):
+    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(14, 10))
+    ax1.hist(list1)
+    ax2.hist(list2)
+    ax3.hist(list3)
+    ax4.hist(list4)
