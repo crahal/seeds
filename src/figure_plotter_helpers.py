@@ -1,10 +1,14 @@
 import matplotlib.pyplot as plt
+import seaborn as sns
+import matplotlib as mpl
 import matplotlib.gridspec as gridspec
 import seaborn as sns
 import pandas as pd
 import numpy as np
 import ast
 import os
+from matplotlib.lines import Line2D
+from matplotlib.patches import Patch
 
 def ffc_plotter(df, figure_path):
     def jointplotter(df, outcome, model, counter):
@@ -137,9 +141,82 @@ def load_sympt(filename):
     return flat_list
 
 
-def covid_plotter(list1, list2, list3, list4):
-    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(14, 10))
-    ax1.hist(list1)
-    ax2.hist(list2)
-    ax3.hist(list3)
-    ax4.hist(list4)
+def covid_plotter(list1, list2, list3, list4, figure_path):
+    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(14, 12))
+    colors = ['#001c54', '#E89818']
+    nbins=18
+    letter_fontsize = 24
+    label_fontsize = 18
+    mpl.rcParams['font.family'] = 'Helvetica'
+    csfont = {'fontname': 'Helvetica'}
+    sns.distplot(list1, hist_kws={'facecolor': colors[0],
+                                  'edgecolor': 'k',
+                                  'alpha': 0.7},
+                 kde_kws={'color': colors[1]}, ax=ax1, bins=nbins)
+    sns.distplot(list2, hist_kws={'facecolor': colors[1],
+                                  'edgecolor': 'k',
+                                  'alpha': 0.7},
+                 kde_kws={'color': colors[0]}, ax=ax2, bins=nbins)
+    sns.distplot(list3, hist_kws={'facecolor': colors[0],
+                                  'edgecolor': 'k',
+                                  'alpha': 0.7},
+                 kde_kws={'color': colors[1]}, ax=ax3, bins=nbins)
+    sns.distplot(list4, hist_kws={'facecolor': colors[1],
+                                  'edgecolor': 'k',
+                                  'alpha': 0.7},
+                 kde_kws={'color': colors[0]}, ax=ax4, bins=nbins)
+    ax1.set_ylabel('Density', fontsize=label_fontsize+2)
+    ax3.set_ylabel('Density', fontsize=label_fontsize+2)
+    ax3.set_xlabel('ROC-AUC (First Wave)', fontsize=label_fontsize+2)
+    ax4.set_xlabel('ROC-AUC (First Year)', fontsize=label_fontsize+2)
+    ax1.set_title('A.', loc='left', fontsize=letter_fontsize, y=1.035)
+    ax2.set_title('B.', loc='left', fontsize=letter_fontsize, y=1.035)
+    ax3.set_title('C.', loc='left', fontsize=letter_fontsize, y=1.035)
+    ax4.set_title('D.', loc='left', fontsize=letter_fontsize, y=1.035)
+
+    legend_elements1 = [Patch(facecolor=colors[0], edgecolor='k',
+                              label=r'Bins', alpha=0.7),
+                        Line2D([0], [0], color=colors[1], lw=1, linestyle='-',
+                               label=r'KDE', alpha=0.7), ]
+    legend_elements2 = [Patch(facecolor=colors[1], edgecolor='k',
+                              label=r'Bins', alpha=0.7),
+                        Line2D([0], [0], color=colors[0], lw=1, linestyle='-',
+                               label=r'KDE', alpha=0.7), ]
+    ax1.legend(handles=legend_elements1, loc='center left', frameon=True,
+                   fontsize=label_fontsize-4, framealpha=1, facecolor='w',
+               edgecolor=(0, 0, 0, 1),
+               title='Unstratified', title_fontsize=label_fontsize-5)
+    ax2.legend(handles=legend_elements2, loc='center left', frameon=True,
+                   fontsize=label_fontsize-4, framealpha=1, facecolor='w',
+               edgecolor=(0, 0, 0, 1),
+               title='Unstratified', title_fontsize=label_fontsize-5)
+    ax3.legend(handles=legend_elements1, loc='center left', frameon=True,
+                   fontsize=label_fontsize-4, framealpha=1, facecolor='w',
+               edgecolor=(0, 0, 0, 1),
+               title='Stratified', title_fontsize=label_fontsize - 5)
+    ax4.legend(handles=legend_elements2, loc='center left', frameon=True,
+                   fontsize=label_fontsize-4, framealpha=1, facecolor='w',
+               edgecolor=(0, 0, 0, 1),
+               title='Stratified', title_fontsize=label_fontsize - 5)
+
+    def annotator(input_list, ax):
+        mean = np.nanmean(input_list)
+        var = np.nanstd(input_list)
+        ax.annotate('E(ROC-AUC) = ' + str(round(mean, 4)) + ', $\sigma$(ROC-AUC) = ' + str(round(var, 4)),
+                    xy=(0.5, 0.85), xytext=(0.5, 0.90), xycoords='axes fraction',
+                    fontsize=17, ha='center', va='bottom',
+                    bbox=dict(boxstyle='round,pad=0.35', fc='white'),
+                    arrowprops=dict(arrowstyle='-[, widthB=10.0, lengthB=1', lw=1.0))
+
+    annotator(list1, ax1)
+    annotator(list2, ax2)
+    annotator(list3, ax3)
+    annotator(list4, ax4)
+
+    for ax in [ax1, ax2, ax3, ax4]:
+        ax.tick_params(axis='both', which='major', labelsize=16)
+        ax.set_ylim(ax.get_ylim()[0], ax.get_ylim()[1] + ax.get_ylim()[1]/4)
+
+    sns.despine()
+    plt.tight_layout()
+    plt.savefig(os.path.join(figure_path, 'covid_seeds.pdf'), bbox_inches='tight')
