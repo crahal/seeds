@@ -1,3 +1,4 @@
+# @ TODO add atrribution
 library(Synth)
 library(MSCMT)
 library(parallel)
@@ -9,7 +10,8 @@ options(dplyr.summarise.inform = FALSE)
 
 load(here("data", "vagni_breen", "input", "isc_sample"))
 
-fsample_person_period = function(pdf_prep, pid_treated_df, k_controls){
+fsample_person_period = function(pdf_prep, pid_treated_df, k_controls, seed){
+  set.seed(seed)
   # We sample only control cases #
   # We use the function "sample_n" with replacement #
     sample_control = pdf_prep %>%
@@ -70,7 +72,7 @@ l = length(isc_sample)
 
 
 
-run <- function(r=10){
+run <- function(seed, r){
     # initialise the output list of the function where you will store the isc results
     synth_w_df = list()
     # initialise a list to save the original mscmt output
@@ -104,7 +106,7 @@ run <- function(r=10){
 
             g = lapply(1:r, function(p) fsample_person_period(pdf_prep,
                                                               pid_treated_df = pid_treated_df,
-                                                              k_controls = k_controls)  )
+                                                              k_controls = k_controls, seed)  )
                                         # we end up with a lists of bootstraped samples (g) #
 
             pdf_mscmt = lapply(1:r, function(i) g[[i]] [,c('pid_char',
@@ -186,31 +188,45 @@ run <- function(r=10){
     return(synth_w_df)
 }
 
+r=50
 max_seeds <- 1000
-for(x in 1:max_seeds) {
-  synth_w_df <- invisible(run(r=50))
+for(seed in 1:max_seeds) {
+  synth_w_df <- run(seed, r)
+  
   average <- synth_w_df[[1]] %>% group_by(pidp, timing_new) %>%
               summarise(earnings = mean(earnings), synthetic = mean(earnings_synth))
-  if (x == 1){
+    if (seed == 1){
     df1 <- data.frame(pidp = average$pidp, timing = average$timing_new, earnings = average$earnings)
   }
   df1[ , ncol(df1) + 1] <- average$synthetic
-  colnames(df1)[ncol(df1)] <- paste0("synthetic", x)
-  
+  colnames(df1)[ncol(df1)] <- paste0("synthetic", seed)
+
   average <- synth_w_df[[2]] %>% group_by(pidp, timing_new) %>%
     summarise(earnings = mean(earnings), synthetic = mean(earnings_synth))
-  if (x == 1){
+  if (seed == 1){
     df2 <- data.frame(pidp = average$pidp, timing = average$timing_new, earnings = average$earnings)
   }
   df2[ , ncol(df2) + 1] <- average$synthetic
-  colnames(df2)[ncol(df2)] <- paste0("synthetic", x)
-  write_csv(    df1,
-    file = here("data", "vagni_breen", "output", "vagni_breen_seeds_person1.csv")
-  )
+  colnames(df2)[ncol(df2)] <- paste0("synthetic", seed)
   
-  write_csv(
-    df2,
-    file = here("data", "vagni_breen", "output", "vagni_breen_seeds_person2.csv")
-  )
-}
 
+  isc_df = bind_rows(synth_w_df)
+  setorder(isc_df, pidp, boot, timing_new)
+  average_causal <- isc_df %>%
+    mutate(diff = earnings - earnings_synth) %>%
+    group_by(pidp, timing_new, post_treatment_period) %>%
+    summarise(m = mean(diff)) %>%
+    group_by(timing_new, post_treatment_period) %>%
+    summarise(round(mean(m)))  %>% as.data.frame()
+  
+  if (seed == 1){
+    df3 <- data.frame(timing = average_causal$timing_new)
+  }
+  df3[ , ncol(df3) + 1] <- average_causal$`round(mean(m))`
+  colnames(df3)[ncol(df3)] <- paste0("average_causal", seed)
+  
+  write_csv(df1, file = here("data", "vagni_breen", "output", "VB_seeds_person1.csv"))
+  write_csv(df2, file = here("data", "vagni_breen", "output", "VB_seeds_person2.csv"))
+  write_csv(df3, file = here("data", "vagni_breen", "output", "VB_seeds_av_causal.csv"))
+
+}
