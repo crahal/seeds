@@ -30,7 +30,6 @@ resultsframe <- function(x_var, y_var) {
   return(results_frame)
 }
 
-
 curve <- function(input) {
   # takes results frame as an input
   # returns results frame including the specification curve analysis results
@@ -101,10 +100,8 @@ main <- function(data, i) {
          "fpsdgf00", "fpsdfb00", "fpsdud00", "fpsdlc00", "fpsddc00",
          "fpsdnc00", "fpsdky00", "fpsdoa00", "fpsdpb00", "fpsdvh00",
          "fpsdst00", "fpsdcs00", "fpsdgb00", "fpsdfe00","fpsdte00")
-  
   y_variables <- (do.call("c", lapply(seq_along(y), function(i) combn(y, i, FUN = list))))
   y_variables_sample <- sample(y_variables[-(1:length(y))], 801, replace = FALSE)
-  
   y1 <- y_variables[1:length(y)]
   y2 <- c("fconduct")
   y3 <- c("fhyper")
@@ -116,8 +113,6 @@ main <- function(data, i) {
   y9 <- c("fconduct", "fhyper")
   y_variables_sample_pr <- c(y_variables_sample, y1,
                              list(y2,y3,y4,y5,y6,y7,y8,y9))
-  save(y_variables_sample_pr, file = "2_3_sca_mcs_y_sample_pr.rda")
-  length(y_variables_sample_pr)
   data_short <- data[, c( "fctvho00r", "fccomh00r", "fccmex00r", "fcinth00r",
                           "fcsome00r", "tech", "fpsdpf00", "fpsdro00",
                           "fpsdhs00", "fpsdsr00", "fpsdtt00", "fpsdsp00",
@@ -131,8 +126,6 @@ main <- function(data, i) {
                           "fpwrdscm", "fdacaq00", "fd05s00", "fpwrdscm",
                           "fpclsi00", "fpchti00", "fdkessl", "fdtots00",
                           "foede000")]
-  
-
   results_mcs_sca_cm <- curve(resultsframe(x_var = x_variables,
                                            y_var = y_variables_sample_cm))
   results_mcs_sca_pr <-  curve(resultsframe(x_var = x_variables,
@@ -146,14 +139,12 @@ main <- function(data, i) {
 
 
 private.data.dir <- file.path(getwd(), '..', 'data', 'mcs', 'raw')
-
-
 cores=detectCores()
-cl <- makeCluster(cores[1]-3)
+cl <- makeCluster(cores[1]-5)
 registerDoParallel(cl)
 data <- read.csv(file.path(private.data.dir, "1_3_prep_mcs_data.csv"), header=TRUE, sep = ",")
 finalMatrix <- foreach(i=1:10000, .combine=cbind) %dopar% {
-  main(data, i) #calling a function
+  main(data, i)
 }
 stopCluster(cl)
 
