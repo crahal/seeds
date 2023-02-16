@@ -58,7 +58,7 @@ curve <- function(input) {
   return(results_frame)
 }
 
-main <- function(data, i) {
+main_fun <- function(data, i) {
   set.seed(i)
   x_variables <- c("fctvho00r", "fccomh00r", "fccmex00r", "fcinth00r", "fcsome00r", "tech")
   x_names <- c("Weekday TV", "Weekday Electronic Games", "Own Computer",
@@ -137,14 +137,17 @@ main <- function(data, i) {
        file = file.path(output.dir, sprintf("2_3_sca_mcs_results_pr_seed_%s.rda", seed)))
 }
 
-
 private.data.dir <- file.path(getwd(), '..', 'data', 'mcs', 'raw')
-cores=detectCores()
-cl <- makeCluster(cores[1]-5)
-registerDoParallel(cl)
+n.cores=detectCores() - 3
+my.cluster <- parallel::makeCluster(
+  n.cores, 
+  type = "PSOCK"
+)
+registerDoParallel(my.cluster)
 data <- read.csv(file.path(private.data.dir, "1_3_prep_mcs_data.csv"), header=TRUE, sep = ",")
-finalMatrix <- foreach(i=1:10000, .combine=cbind) %dopar% {
-  main(data, i)
+foreach(i=1:10000) %dopar% {
+  main_fun(data, i)
 }
-stopCluster(cl)
+
+stopCluster(my.cluster)
 
