@@ -30,12 +30,12 @@ resultsframe <- function(x_var, y_var) {
   return(results_frame)
 }
 
-curve <- function(input) {
+curve <- function(input, data_short) {
   # takes results frame as an input
   # returns results frame including the specification curve analysis results
   results_frame <- input
   for (n in 1:nrow(results_frame)) {
-    print(n/nrow(results_frame))
+#    print(n/nrow(results_frame))
     data_short$dv <-
       rowMeans(subset(data_short, select = results_frame$y_variable[[n]]),
                na.rm = FALSE)
@@ -59,6 +59,7 @@ curve <- function(input) {
 }
 
 main_fun <- function(data, i) {
+  print(i)
   set.seed(i)
   x_variables <- c("fctvho00r", "fccomh00r", "fccmex00r", "fcinth00r", "fcsome00r", "tech")
   x_names <- c("Weekday TV", "Weekday Electronic Games", "Own Computer",
@@ -95,6 +96,10 @@ main_fun <- function(data, i) {
                           "fpwrdscm", "fdacaq00","fd05s00","fpwrdscm",
                           "fpclsi00", "fpchti00", "fdkessl","fdtots00",
                           "foede000", "tech")]
+  results_mcs_sca_cm <- curve(resultsframe(x_var = x_variables,
+                                           y_var = y_variables_sample_cm),
+                              data_short)
+  
   y <- c("fpsdpf00", "fpsdro00", "fpsdhs00", "fpsdsr00","fpsdtt00",
          "fpsdsp00", "fpsdor00", "fpsdmw00", "fpsdhu00", "fpsdfs00",
          "fpsdgf00", "fpsdfb00", "fpsdud00", "fpsdlc00", "fpsddc00",
@@ -126,28 +131,34 @@ main_fun <- function(data, i) {
                           "fpwrdscm", "fdacaq00", "fd05s00", "fpwrdscm",
                           "fpclsi00", "fpchti00", "fdkessl", "fdtots00",
                           "foede000")]
-  results_mcs_sca_cm <- curve(resultsframe(x_var = x_variables,
-                                           y_var = y_variables_sample_cm))
   results_mcs_sca_pr <-  curve(resultsframe(x_var = x_variables,
-                                            y_var = y_variables_sample_pr))
+                                            y_var = y_variables_sample_pr),
+                               data_short)
   output.dir <- file.path(getwd(),'..',  'data', 'mcs', 'results')
   save(results_mcs_sca_cm,
-       file = file.path(output.dir, sprintf("2_3_sca_mcs_results_cm_seed_%s.rda", seed)))
+       file = file.path(output.dir, sprintf("2_3_sca_mcs_results_cm_seed_%s.rda", i)))
   save(results_mcs_sca_pr,
-       file = file.path(output.dir, sprintf("2_3_sca_mcs_results_pr_seed_%s.rda", seed)))
+       file = file.path(output.dir, sprintf("2_3_sca_mcs_results_pr_seed_%s.rda", i)))
 }
 
 private.data.dir <- file.path(getwd(), '..', 'data', 'mcs', 'raw')
-n.cores=detectCores() - 3
-my.cluster <- parallel::makeCluster(
-  n.cores, 
-  type = "PSOCK"
-)
-registerDoParallel(my.cluster)
 data <- read.csv(file.path(private.data.dir, "1_3_prep_mcs_data.csv"), header=TRUE, sep = ",")
-foreach(i=1:10000) %dopar% {
+
+#n.cores=detectCores() - 2
+#my.cluster <- parallel::makeCluster(
+#  n.cores, 
+#  type = "PSOCK"
+#)
+#registerDoParallel(my.cluster)
+#foreach(i=1:10000) %dopar% {
+#  main_fun(data, i)
+#}
+#foreach(i=1:10000) %dopar% {
+#  main_fun(data, i)
+#}
+#stopCluster(my.cluster)
+
+
+for(i in 1:10000){
   main_fun(data, i)
 }
-
-stopCluster(my.cluster)
-

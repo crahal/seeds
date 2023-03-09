@@ -7,8 +7,10 @@ import pandas as pd
 import numpy as np
 import ast
 import os
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
+
 
 def ffc_plotter(df, figure_path):
     def jointplotter(df, outcome, model, counter):
@@ -147,8 +149,8 @@ def covid_plotter(list1, list2, list3, list4, figure_path):
     nbins=18
     letter_fontsize = 24
     label_fontsize = 18
-    mpl.rcParams['font.family'] = 'Helvetica'
-    csfont = {'fontname': 'Helvetica'}
+    mpl.rcParams['font.family'] = 'Arial'
+    csfont = {'fontname': 'Arial'}
     sns.distplot(list1, hist_kws={'facecolor': colors[0],
                                   'edgecolor': 'k',
                                   'alpha': 0.7},
@@ -220,3 +222,65 @@ def covid_plotter(list1, list2, list3, list4, figure_path):
     sns.despine()
     plt.tight_layout()
     plt.savefig(os.path.join(figure_path, 'covid_seeds.pdf'), bbox_inches='tight')
+
+
+def mca_plotter(figure_path):
+    results_path = os.path.join(os.getcwd(), '..', 'data', 'mcs', 'results', 'csvs')
+    df_list = []
+    counter = 0
+    for file in os.listdir(results_path):
+        filename = os.fsdecode(file)
+        if filename.endswith(".csv"):
+            df = pd.read_csv(os.path.join(results_path, file), index_col=False)
+            df.rename({'x': str(counter)}, axis=1, inplace=True)
+            df_list.append(df[str(counter)])
+            counter = counter + 1
+        else:
+            pass
+    df = pd.concat(df_list, axis=1)
+    min_series = df.min(axis=1).sort_values().reset_index()[0]
+    max_series = df.max(axis=1).sort_values().reset_index()[0]
+    med_series = df.median(axis=1).sort_values().reset_index()[0]
+    fig, ax = plt.subplots(1, 1, figsize=(8, 8))
+    figure_path = os.path.join(os.getcwd(), '..', 'figures')
+    colors = ['#001c54', '#E89818']
+    nbins = 18
+    letter_fontsize = 24
+    label_fontsize = 18
+    mpl.rcParams['font.family'] = 'Arial'
+    csfont = {'fontname': 'Arial'}
+    ax.plot(min_series.index, min_series, color=colors[1], linestyle='-', alpha=0.8)
+    ax.plot(max_series.index, max_series, color=colors[1], linestyle='-', alpha=0.8)
+    ax.plot(med_series.index, med_series, color=colors[0], linestyle='--', alpha=0.8)
+    ax.set_ylabel(r'Effect Size ($\rm{\hat{\beta}}$)', fontsize=label_fontsize)
+    ax.set_xlabel(r'Specification (n)', fontsize=label_fontsize)
+    legend_elements1 = [Line2D([0], [0], color=colors[0], lw=1, linestyle='--',
+                               label=r'Median', alpha=0.7),
+                        Line2D([0], [0], color=colors[1], lw=1, linestyle='-',
+                               label=r'Bounds', alpha=0.7), ]
+    ax.legend(handles=legend_elements1, loc='upper left', frameon=True,
+              fontsize=label_fontsize - 4, framealpha=1, facecolor='w',
+              edgecolor=(0, 0, 0, 1),
+              )
+    plt.hlines(y=0, xmin=ax.get_xlim()[0], xmax=ax.get_xlim()[1],
+               color='k', linewidth=1, linestyle='--', alpha=0.5)
+    plt.fill_between(min_series.index, min_series, y2=max_series,
+                     color=colors[1], alpha=0.075)
+    ax.tick_params(axis='both', which='major', labelsize=16)
+
+    inset_ax = inset_axes(ax,
+                          width="41%",  # width = 30% of parent_bbox
+                          height="90%",  # height : 1 inch
+                          loc='lower right',
+                          bbox_to_anchor=(-0.005, 0.075, 1, 0.3),
+                          bbox_transform=ax.transAxes)
+    inset_ax.set_xlabel(r'Effect Size ($\rm{\hat{\beta}}$)',
+                        fontsize=label_fontsize - 5, labelpad=-3)
+    inset_ax.set_ylabel('Frequency', fontsize=label_fontsize - 5)
+    df = pd.concat(df_list, axis=0)
+    inset_ax.hist(df, bins=50, color=colors[0],
+                  alpha=0.6, edgecolor='k')
+    ax.set_title('A.', loc='left', fontsize=letter_fontsize, y=1.0, x=-.05)
+    inset_ax.set_title('B.', loc='left', fontsize=letter_fontsize - 8, y=1.035, x=-0.12)
+    sns.despine()
+    plt.savefig(os.path.join(figure_path, 'mcs_seeds.pdf'), bbox_inches='tight')
