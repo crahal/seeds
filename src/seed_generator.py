@@ -7,7 +7,6 @@ def generate_seeds():
 
 
 if __name__ == "__main__":
-    seed_list = []
     number_seeds = 10000
     seed_list = [generate_seeds() for _ in range(number_seeds)]
 
