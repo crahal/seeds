@@ -18,7 +18,7 @@ def sample_cosine():
 
 
 class Buffon_needle_problem:
-    """Acknowledgement: THanks to jpf on Stack Overflow
+    """Acknowledgement: Thanks to jpf on Stack Overflow
        for the inspiration for this!
        (Response to question 31291174)
        """
