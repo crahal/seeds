@@ -7,6 +7,7 @@ import pandas as pd
 import numpy as np
 import ast
 import os
+import math
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
@@ -18,13 +19,11 @@ def ffc_plotter(df, figure_path):
                  (df['account']==model)][0:10000]
         title_list = ['A.', 'B.', 'C.', 'D.', 'E.', 'F.']
         title = title_list[counter]
-        g =  sns.jointplot(x=df1['beta'],
-                           y=df1['r2_holdout'],
-                           kind='hex',
-                           marginal_kws=dict(bins=25,
-                                             fill=False,
-                                             color='k',
-                                             zorder=0))
+        g = sns.jointplot(x=df1['beta'],
+                          y=df1['r2_holdout'],
+                          kind='hex',
+                          marginal_kws=dict(bins=25,
+                                            color='w'))
         g.plot_joint(sns.kdeplot, color="r", levels=6)
         g.ax_marg_x.annotate(title, xy=(-0.1, .45), xycoords='axes fraction',
                     ha='left', va='center', fontsize=24)
@@ -284,3 +283,40 @@ def mca_plotter(figure_path):
     inset_ax.set_title('B.', loc='left', fontsize=letter_fontsize - 8, y=1.035, x=-0.12)
     sns.despine()
     plt.savefig(os.path.join(figure_path, 'mcs_seeds.pdf'), bbox_inches='tight')
+
+
+def buffons_plotter(df, figure_path):
+    letter_fontsize = 24
+    label_fontsize = 18
+    mpl.rcParams['font.family'] = 'Arial'
+    fig, ax = plt.subplots(1, 1, figsize=(12, 5))
+    df = df.set_index('Throws')
+    df = df[45:]
+    colors = ['#001c54', '#F7EDD2', '#8b0000']
+    ax.plot(df['Min'], color=colors[2])
+    ax.plot(df['Max'], color=colors[0])
+    ax.set_xlim(0, df.index[-1]+500)
+    ax.set_ylim(2.225, 4.5)
+    ax.hlines(math.pi, df.index[0]+500, df.index[-1], color='k', linestyle='--', alpha=0.5)
+    ax.fill_between(df.index, df['Min'], df['Max'], color=colors[1], alpha=1)
+    ax.set_xlabel('Number of Throws', fontsize=label_fontsize)
+    ax.set_ylabel(r'Estimate of $\mathrm{\pi}$', fontsize=label_fontsize)
+    ax.tick_params(axis='both', which='major', labelsize=14)
+    ax.set_title('A.', loc='left', fontsize=letter_fontsize, y=1.0, x=-.08)
+    ax.tick_params(width=1, length=8)
+    legend_elements1 = [
+        Line2D([0], [0], color=colors[0], lw=2, linestyle='-',
+               label=r'Upper Limit', alpha=0.7),
+        Line2D([0], [0], color=colors[2], lw=2, linestyle='-',
+               label=r'Lower Limit', alpha=0.7),
+        Line2D([0], [0], color='k', lw=2, linestyle='--',
+               label=r'$\mathrm{\pi}$', alpha=0.7),
+        Patch(facecolor=colors[1], edgecolor=(0,0,0,1),
+                              label=r'Range', alpha=1)]
+    ax.legend(handles=legend_elements1, loc='upper right', frameon=True,
+              fontsize=label_fontsize-4, framealpha=1, facecolor='w',
+              edgecolor=(0, 0, 0, 1), ncols=2
+             )
+    ax.set_axisbelow(True)
+    ax.grid(which = "both", linestyle='--', alpha=0.5)
+    plt.savefig(os.path.join(figure_path, 'buffon_seeds.pdf'), bbox_inches='tight')

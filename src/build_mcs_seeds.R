@@ -159,6 +159,6 @@ data <- read.csv(file.path(private.data.dir, "1_3_prep_mcs_data.csv"), header=TR
 #stopCluster(my.cluster)
 
 
-for(i in 1:10000){
+for(i in 8630:10000){
   main_fun(data, i)
 }
