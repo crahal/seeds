@@ -1,16 +1,106 @@
-import matplotlib.pyplot as plt
-import seaborn as sns
-import matplotlib as mpl
-import matplotlib.gridspec as gridspec
-import seaborn as sns
-import pandas as pd
-import numpy as np
 import ast
 import os
 import math
-from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+import numpy as np
+import pandas as pd
+import yfinance as yf
+import seaborn as sns
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
+from pandas_datareader import data as pdr
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+
+
+def combine_buffon_and_rw(figure_path):
+    yf.pdr_override()
+    btc_data = pdr.get_data_yahoo('BTC-USD', start="2021-05-08", end="2023-05-15")
+    df = pd.read_csv(os.path.join(os.getcwd(),
+                                  '..', 'data',
+                                  'needles',
+                                  'results',
+                                  'throw100_25000_5000seeds.csv'),
+                    names = ['Throws', 'Min', '25th_PC',
+                    'Median', '75th_PC', 'Max'])
+    letter_fontsize = 24
+    label_fontsize = 18
+    mpl.rcParams['font.family'] = 'Helvetica'
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 7))
+    df = df.set_index('Throws')
+    df = df[45:]
+    colors = ['#001c54', (255/255, 223/255, 0/255, 10/255), '#8b0000']
+    ax1.plot(df['Min'], color=colors[2])
+    ax1.plot(df['Max'], color=colors[0])
+    ax1.set_xlim(0, df.index[-1]+500)
+    ax1.set_ylim(2.225, 4.5)
+    ax1.hlines(math.pi, df.index[0]+500, df.index[-1],
+               color='k', linestyle='--', alpha=.5)
+    ax1.fill_between(df.index, df['Min'], df['Max'],
+                     color=colors[1])
+    ax1.set_xlabel('Number of Throws', fontsize=label_fontsize)
+    ax1.set_ylabel(r'Estimate of $\mathrm{\pi}$', fontsize=label_fontsize)
+    ax1.tick_params(axis='both', which='major', labelsize=14)
+    ax1.tick_params(width=1, length=8)
+    legend_elements1 = [
+        Line2D([0], [0], color=colors[0], lw=2, linestyle='-',
+               label=r'Upper Limit', alpha=0.7),
+       Line2D([0], [0], color=colors[2], lw=2, linestyle='-',
+               label=r'Lower Limit', alpha=0.7),
+        Line2D([0], [0], color='k', lw=2, linestyle='--',
+               label=r'$\mathrm{\pi}$', alpha=0.7),
+        Patch(facecolor=colors[1], edgecolor=(0,0,0,1),
+                              label=r'Range')]
+    ax1.legend(handles=legend_elements1, loc='upper right', frameon=True,
+               fontsize=label_fontsize-4, framealpha=1, facecolor='w',
+               edgecolor=(0, 0, 0, 1), ncols=2
+              )
+    ax1.set_axisbelow(True)
+    ax1.grid(which = "both", linestyle='--', alpha=0.3)
+    size = 366
+    rw_path = os.path.join(os.getcwd(), '..', 'data', 'random_walk', 'random_walks.csv')
+    random_walks = pd.read_csv(rw_path, header=None)
+    btc_data = btc_data/1000
+    random_walks = random_walks/1000
+    index= pd.DataFrame(index=btc_data.index + pd.DateOffset(len(btc_data)+1))[0:size+1].index
+    random_walks.index = index
+    btc_data['Close'].plot(ax=ax2, color = colors[0])
+    random_walks.min(axis=1).plot(ax=ax2, color = colors[2])
+    random_walks.max(axis=1).plot(ax=ax2, color = colors[2])
+    random_walks.median(axis=1).plot(ax=ax2, color = 'k', linestyle='--', alpha=.5)
+    legend_elements2 = [
+        Line2D([0], [0], color=colors[0], lw=2, linestyle='-',
+               label=r'In-sample', alpha=0.7),
+       Line2D([0], [0], color=colors[2], lw=2, linestyle='-',
+               label=r'Min/Max', alpha=0.7),
+        Line2D([0], [0], color='k', lw=2, linestyle='--',
+               label=r'Median', alpha=0.7),
+        Patch(facecolor=colors[1], edgecolor=(0,0,0,1),
+                              label=r'Range')]
+    ax2.legend(handles=legend_elements2, loc='upper left', frameon=True,
+               fontsize=label_fontsize-4, framealpha=1, facecolor='w',
+               edgecolor=(0, 0, 0, 1), ncols=2
+              )
+    ylabels = ['${:,.0f}'.format(x) + 'k' for x in ax2.get_yticks()]
+    ax2.set_yticklabels(ylabels)
+    ax2.set_xlabel('')
+    ax2.fill_between(random_walks.index, random_walks.min(axis=1),
+                     random_walks.max(axis=1), color=colors[1])
+    ax1.set_title('A.', loc='left', fontsize=letter_fontsize, y=1.0)
+    ax2.set_title('B.', loc='left', fontsize=letter_fontsize, y=1.0)
+    ax2.tick_params(width=1, length=8)
+    ax2.set_ylabel(r'Price', fontsize=label_fontsize)
+    ax2.tick_params(axis='both', which='major', labelsize=14)
+    ax2.set_axisbelow(True)
+    ax2.grid(which="major", linestyle='--', alpha=0.3)
+    ax2.set_zorder(3)
+    sns.despine()
+    plt.tight_layout()
+    filename = 'buffon_and_rw'
+    plt.savefig(os.path.join(figure_path, filename + '.pdf'),
+                bbox_inches = 'tight')
+
 
 
 def ffc_plotter(df, figure_path):
@@ -42,7 +132,7 @@ def ffc_plotter(df, figure_path):
     figurez = []
     outcomes = ['gpa', 'grit', 'materialHardship',
                 'eviction', 'jobTraining', 'layoff']
-    for outcome, counter in zip(outcomes, range(0,6)):
+    for outcome, counter in zip(outcomes, range(0, 6)):
         if counter > 2:
             model = 'logit'
         else:
@@ -279,8 +369,10 @@ def mca_plotter(figure_path):
     df = pd.concat(df_list, axis=0)
     inset_ax.hist(df, bins=50, color=colors[0],
                   alpha=0.6, edgecolor='k')
-    ax.set_title('A.', loc='left', fontsize=letter_fontsize, y=1.0, x=-.05)
-    inset_ax.set_title('B.', loc='left', fontsize=letter_fontsize - 8, y=1.035, x=-0.12)
+    ax.set_title('B.', loc='left', fontsize=letter_fontsize, y=1.0, x=-.05)
+    ax.set_axisbelow(True)
+    ax.grid(which = "both", linestyle='--', alpha=0.3)
+#    inset_ax.set_title('.', loc='left', fontsize=letter_fontsize - 8, y=1.035, x=-0.12)
     sns.despine()
     plt.savefig(os.path.join(figure_path, 'mcs_seeds.pdf'), bbox_inches='tight')
 
@@ -318,5 +410,149 @@ def buffons_plotter(df, figure_path):
               edgecolor=(0, 0, 0, 1), ncols=2
              )
     ax.set_axisbelow(True)
-    ax.grid(which = "both", linestyle='--', alpha=0.5)
-    plt.savefig(os.path.join(figure_path, 'buffon_seeds.pdf'), bbox_inches='tight')
+    ax.grid(which = "both", linestyle='--', alpha=0.3)
+    plt.savefig(os.path.join(figure_path,
+                             'buffon_seeds.pdf'),
+                bbox_inches='tight')
+
+
+def plot_two_predictions(housing, first_wave_10k_stratified_list, figure_path):
+    fig, ((ax1, ax2)) = plt.subplots(1, 2, figsize=(15, 7.5))
+    colors = ['#001c54', '#E89818']
+    housing = housing.reset_index()
+    print('Housing min: ', housing['r2'].min())
+    print('Housing max: ', housing['r2'].max())
+    print('Covid min: ', np.min(first_wave_10k_stratified_list))
+    print('Covid max: ', np.max(first_wave_10k_stratified_list))
+    nbins = 18
+    letter_fontsize = 24
+    label_fontsize = 18
+    mpl.rcParams['font.family'] = 'Arial'
+    csfont = {'fontname': 'Arial'}
+    sns.distplot(first_wave_10k_stratified_list,
+                 hist_kws={'facecolor': colors[0],
+                           'edgecolor': 'k',
+                           'alpha': 0.7},
+                 kde_kws={'color': colors[1]}, ax=ax1, bins=nbins)
+    sns.distplot(housing['r2'], hist_kws={'facecolor': colors[1],
+                                    'edgecolor': 'k',
+                                    'alpha': 0.7},
+                 kde_kws={'color': colors[0]}, ax=ax2, bins=nbins)
+    ax1.set_ylabel('Density', fontsize=label_fontsize + 2)
+    ax2.set_ylabel('')
+    ax1.set_xlabel('ROC-AUC', fontsize=label_fontsize + 2)
+    ax2.set_xlabel('R$^2$', fontsize=label_fontsize + 2)
+
+    ax1.set_title('A.', loc='left', fontsize=letter_fontsize, y=1.035)
+    ax2.set_title('B.', loc='left', fontsize=letter_fontsize, y=1.035)
+
+    legend_elements1 = [Patch(facecolor=colors[0], edgecolor='k',
+                              label=r'Bins', alpha=0.7),
+                        Line2D([0], [0], color=colors[1], lw=1, linestyle='-',
+                               label=r'KDE', alpha=0.7), ]
+    legend_elements2 = [Patch(facecolor=colors[1], edgecolor='k',
+                              label=r'Bins', alpha=0.7),
+                        Line2D([0], [0], color=colors[0], lw=1, linestyle='-',
+                               label=r'KDE', alpha=0.7), ]
+    ax1.legend(handles=legend_elements1, loc='center left', frameon=True,
+               fontsize=label_fontsize - 2, framealpha=1, facecolor='w',
+               edgecolor=(0, 0, 0, 1)
+               )
+    ax2.legend(handles=legend_elements2, loc='center left', frameon=True,
+               fontsize=label_fontsize - 2, framealpha=1, facecolor='w',
+               edgecolor=(0, 0, 0, 1)
+               )
+
+    for ax in [ax1, ax2]:
+        ax.tick_params(axis='both', which='major', labelsize=16)
+        ax.set_ylim(ax.get_ylim()[0], ax.get_ylim()[1] + ax.get_ylim()[1] / 7)
+    mean = round(np.nanmean(first_wave_10k_stratified_list), 3)
+    var = round(np.nanstd(first_wave_10k_stratified_list), 3)
+    ax1.annotate('E(ROC-AUC) = ' + str(mean) + ', $\sigma$(ROC-AUC) = ' + str(var),
+                 xy=(0.5, 0.875), xytext=(0.5, 0.925), xycoords='axes fraction',
+                 fontsize=16, ha='center', va='bottom',
+                 bbox=dict(boxstyle='round,pad=0.35', fc='white'),
+                 arrowprops=dict(arrowstyle='-[, widthB=10.0, lengthB=1',
+                                 lw=1.0))
+
+    mean = round(np.nanmean(housing['r2']), 3)
+    var = round(np.nanstd(housing['r2']), 3)
+    ax2.annotate('E(R$^2$) = ' + str(mean) + ', $\sigma$(R$^2$) = ' + str(var),
+                 xy=(0.5, 0.875), xytext=(0.5, 0.925), xycoords='axes fraction',
+                 fontsize=16, ha='center', va='bottom',
+                 bbox=dict(boxstyle='round,pad=0.35', fc='white'),
+                 arrowprops=dict(arrowstyle='-[, widthB=10.0, lengthB=1',
+                                 lw=1.0))
+    ax1.set_axisbelow(True)
+    ax2.set_axisbelow(True)
+    ax1.grid(which="both", linestyle='--', alpha=0.3)
+    ax2.grid(which="both", linestyle='--', alpha=0.3)
+    sns.despine()
+    plt.tight_layout()
+    plt.savefig(os.path.join(figure_path, 'prediction_seeds.pdf'), bbox_inches='tight')
+
+
+def make_ffc_just_gpa(ffc, figure_path):
+    fig = plt.figure(figsize=(8, 8))
+    figurez = []
+    outcome = 'gpa'
+    model = 'ols'
+    df1 = ffc[(ffc['outcome']==outcome) &
+              (ffc['account']==model)][0:10000]
+    g = sns.jointplot(x=df1['beta'],
+                      y=df1['r2_holdout'],
+                          kind='hex',
+                          marginal_kws=dict(bins=25,
+                                            color='w'))
+    g.plot_joint(sns.kdeplot, color="r", levels=6)
+    g.ax_marg_x.annotate('A.', xy=(-0.1, 1), xycoords='axes fraction', ha='left', va='center', fontsize=24)
+    g.ax_joint.set_ylabel(r'Pseudo R$^2$', fontsize=16)
+    g.ax_joint.set_xlabel('Lagged Coefficient', fontsize=16)
+    g.ax_joint.annotate('GPA', xy=(0.9, 0.05),
+                        xycoords='axes fraction',
+                        ha='left', va='center', fontsize=14)
+    g.ax_joint.tick_params(axis='both', which='major', labelsize=13)
+    g.ax_joint.grid(which = "both", linestyle='--', alpha=0.5)
+    plt.savefig(os.path.join(figure_path, 'ffc_seeds_just_gpa.pdf'), bbox_inches='tight')
+    plt.show()
+    print('Beta minimum for GPA: ', df1['beta'].min())
+    print('Beta median for GPA: ', df1['beta'].median())
+    print('Beta maximum for GPA: ', df1['beta'].max())
+    print('R2 minimum for GPA: ', df1['r2_holdout'].min())
+    print('R2 median for GPA:', df1['r2_holdout'].median())
+    print('R2 median for GPA:', df1['r2_holdout'].max())
+
+
+def plot_rgms(figure_path):
+    df = pd.read_csv(os.path.join(os.getcwd(), '..',
+                                  'data', 'rgms',
+                                  'rgms.csv'),
+                     header=None)
+    fig, (ax1, ax3) = plt.subplots(1, 2, figsize=(8, 8))
+    nbins = 15
+    letter_fontsize = 24
+    label_fontsize = 18
+    mpl.rcParams['font.family'] = 'Arial'
+    csfont = {'fontname': 'Arial'}
+    colors = ['#001c54', '#E89818']
+    sns.swarmplot(y=df[0], ax=ax1,  color=colors[0])
+    sns.swarmplot(y=df[1], ax=ax3, color=colors[1], alpha=0.825)
+    ax1.tick_params(axis='both', which='major', labelsize=14)
+    ax3.tick_params(axis='both', which='major', labelsize=14)
+    sns.despine(ax=ax1)
+    sns.despine(ax=ax3)
+    ax1.set_xlabel('Pr=0.2', fontsize=label_fontsize)
+    ax1.set_ylabel('Average Degree', fontsize=label_fontsize)
+    ax3.set_ylabel('', fontsize=label_fontsize)
+    ax3.set_xlabel('Pr=0.4', fontsize=label_fontsize)
+    ax1.set_title('A.', loc='left', fontsize=letter_fontsize, y=1.035)
+    ax3.tick_params(axis='y', colors='k')
+    ax1.grid(which = "both", linestyle='--', alpha=0.4)
+    ax3.grid(which = "both", linestyle='--', alpha=0.4)
+    ax1.yaxis.set_major_locator(plt.MaxNLocator(5))
+    ax3.yaxis.set_major_locator(plt.MaxNLocator(5))
+    plt.setp(ax1.collections, alpha=.85)
+    plt.setp(ax3.collections, alpha=.85)
+    plt.tight_layout()
+    plt.savefig(os.path.join(figure_path, 'rgm_seeds.pdf'),
+                bbox_inches='tight')
