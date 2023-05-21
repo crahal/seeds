@@ -11,14 +11,9 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 
 def save_results(straps):
-    out_path = os.path.join(os.getcwd(),
-                            '..',
-                            'data',
-                            'ehrlich',
-                            'results',
-                            'ehrlich_bootstraps.csv')
     straps = [list(i) for i in zip(*straps)]
-    out_path = os.path.join(os.getcwd(), '..', 'data', 'ehrlich', 'ehrlich_bootstraps.csv')
+    out_path = os.path.join(os.getcwd(), '..', 'data', 'ehrlich',
+                            'results', 'ehrlich_bootstraps.csv')
     with open(out_path, "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerows(straps)
@@ -61,26 +56,14 @@ def outter_wrapper(new_seed_list):
 if __name__ == "__main__":
   seed_list_path = os.path.join(os.getcwd(), '..', 'assets',
                                 'seed_list_of_lists.txt')
-  seed_lists = pd.read_csv(seed_list_path, header=None)
+  seed_lists = pd.read_csv(seed_list_path, header=None, nrows=5)
   print_full_model()
   n_cores = 4
   pool = mp.Pool(n_cores)
   df = get_data()
   model_vars = ['lnprob', 'lntime', 'lnwealth', 'lnineq', 'lnnw']
   straps = []
-  list_of_lists = seed_lists.values.tolist()
   list_of_lists = seed_lists.T.values.tolist()
   all_results = list(tqdm(pool.imap(outter_wrapper, list_of_lists),
                           total=len(list_of_lists)))
-
-  #for seed_group in tqdm(range(len(list_of_lists.columns))):
-  #    new_seed_list = list_of_lists[seed_group].to_list()
-  #    coefs = []
-  #    for i in range(0, len(new_seed_list)):
-  #        sample = resample(df, replace=True, n_samples=len(df),
-  #                          random_state=new_seed_list[i])
-  #        lin_reg.fit(sample[model_vars], sample['lncrime'],
-  #                    sample_weight=sample['sqrtpop'])
-  #        coefs.append(lin_reg.coef_.ravel()[0])
-  #    straps.append(coefs)
-  #save_results(straps)
+  save_results(all_results)
