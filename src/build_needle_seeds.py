@@ -54,7 +54,7 @@ class Buffon_needle_problem:
 
 
 def outter_wrapper(n_throws):
-    seed_limit = 5000
+    seed_limit = 2500
     seed_results = []
     seed_list_path = os.path.join(os.getcwd(), '..', 'assets', 'seed_list.txt')
     with open(seed_list_path) as f:
@@ -72,10 +72,10 @@ def outter_wrapper(n_throws):
 
 if __name__ == "__main__":
     start_range = 1000
-    finish_range = 50000
+    finish_range = 40000
     step = 10
     throw_range = range(start_range, finish_range, step)
-    n_cores = 4
+    n_cores = 7
     pool = mp.Pool(n_cores)
     print(f'Up and running with {n_cores} cores!')
     all_results = list(tqdm(pool.imap(outter_wrapper, throw_range),
