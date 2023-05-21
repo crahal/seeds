@@ -129,3 +129,13 @@ dmypy.json
 .pyre/
 
 data/*
+/.Rhistory
+/.idea/.name
+/.idea/misc.xml
+/.idea/modules.xml
+/.idea/inspectionProfiles/profiles_settings.xml
+/.idea/inspectionProfiles/Project_Default.xml
+/assets/seed_notes.odt
+/.idea/seeds.iml
+/.idea/vcs.xml
+/.idea/workspace.xml
