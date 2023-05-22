@@ -6,7 +6,7 @@ import pandas as pd
 
 def main():
     csv_path = os.path.join(os.getcwd(), '..', 'data', 'mcs', 'results', 'csv_files')
-    merged_path = os.path.join(os.getcwd(), '..', 'data', 'mcs', 'results', 'merged')
+    merged_path = os.path.join(os.getcwd(), '..', 'data', 'mcs', 'results', 'merged_files')
     files = [file_path for file_path in os.listdir(csv_path) if file_path.endswith('.csv')]
     df = None
     for fname in tqdm(files):
