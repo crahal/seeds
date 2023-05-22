@@ -1,6 +1,6 @@
 <img src="./assets/ffc_seeds.png" width="700"/>
 
-# :bar_chart: From a Seed of Doubt Grows a Forest of Uncertainty :chart_with_upwards_trend:
+# From a Seed of Doubt Grows a Forest of Uncertainty
 
 ![coverage](https://img.shields.io/badge/Purpose-Research-yellow)
 [![Generic badge](https://img.shields.io/badge/Python-3.6-red.svg)](https://shields.io/)
