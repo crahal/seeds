@@ -29,7 +29,7 @@ if __name__ == "__main__":
         else:
             print(f'Wuhoh, we have {dups} birthdays in the room!')
 
-    number_seeds = 100
+    number_seeds = 200
     n_cols = 1000000
     seed_list_of_lists = []
     for _ in tqdm(range(n_cols)):

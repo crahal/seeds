@@ -17,7 +17,8 @@ def main():
             temp_df = pd.read_csv(path, index_col=None, usecols=['x'])
             temp_df = temp_df.rename({'x': fname.split('.')[0]}, axis=1)
             df = pd.merge(df, temp_df, left_index=True, right_index=True)
-    df.to_csv(os.path.join(merged_path, 'merged_csvs.csv'))
+    df = df.round(4)
+    df.to_csv(os.path.join(merged_path, 'merged_csvs.csv'), index=False)
 
 
 if __name__ == "__main__":

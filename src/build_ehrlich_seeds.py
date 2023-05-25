@@ -56,7 +56,7 @@ def outter_wrapper(new_seed_list):
                           random_state=i)
         lin_reg.fit(sample[model_vars], sample['lncrime'],
                     sample_weight=sample['sqrtpop'])
-        coefs.append(lin_reg.coef_.ravel()[0])
+        coefs.append(np.round(lin_reg.coef_.ravel()[0], 4))
     return coefs
 
 

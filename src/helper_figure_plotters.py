@@ -14,6 +14,83 @@ from pandas_datareader import data as pdr
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
 
+
+def plot_two_inference(figure_path):
+    results_path = os.path.join(os.getcwd(), '..', 'data', 'mcs',
+                                'results', 'merged_files',
+                                'merged_csvs.csv')
+    df = pd.read_csv(results_path, index_col=False)
+    min_series = df.min(axis=1).sort_values().reset_index()[0]
+    max_series = df.max(axis=1).sort_values().reset_index()[0]
+    med_series = df.median(axis=1).sort_values().reset_index()[0]
+    all_in_one_list = list(df.melt().drop('variable',axis=1).rename({'value':'A'},axis=1)['A'])
+    ehrlich_path = os.path.join(os.getcwd(), '..', 'data',
+                                  'ehrlich', 'results',
+                                  'ehrlich_bootstraps.csv')
+    df = pd.read_csv(ehrlich_path, index_col=0, header=None, low_memory=False)
+    df = df.reset_index().drop(0, axis=1)
+    df = df.apply(pd.to_numeric, errors='coerce')
+    min_strap = df[df.mean().argmin()]
+    max_strap = df[df.mean().argmax()]
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 8))
+    figure_path = os.path.join(os.getcwd(), '..', 'figures')
+    colors = ['#001c54', '#E89818']
+    nbins = 18
+    letter_fontsize = 24
+    label_fontsize = 18
+    mpl.rcParams['font.family'] = 'Arial'
+    csfont = {'fontname': 'Arial'}
+    ax1.plot(min_series.index, min_series, color=colors[1], linestyle='-', alpha=0.8)
+    ax1.plot(max_series.index, max_series, color=colors[1], linestyle='-', alpha=0.8)
+    ax1.plot(med_series.index, med_series, color=colors[0], linestyle='--', alpha=0.8)
+    ax1.set_ylabel(r'Effect Size ($\rm{\hat{\beta}}$)', fontsize=label_fontsize)
+    ax2.set_ylabel('Density', fontsize=label_fontsize)
+    ax1.set_xlabel(r'Specification (n)', fontsize=label_fontsize)
+    ax2.set_xlabel(r'Effect Size ($\rm{\hat{\beta}}$)', fontsize=label_fontsize)
+    legend_elements1 = [Line2D([0], [0], color=colors[0], lw=1, linestyle='--',
+                               label=r'Median', alpha=0.7),
+                        Line2D([0], [0], color=colors[1], lw=1, linestyle='-',
+                               label=r'Bounds', alpha=0.7), ]
+    ax1.legend(handles=legend_elements1, loc='upper left', frameon=True,
+              fontsize=label_fontsize - 4, framealpha=1, facecolor='w',
+              edgecolor=(0, 0, 0, 1))
+    ax1.hlines(y=0, xmin=ax1.get_xlim()[0], xmax=ax1.get_xlim()[1],
+               color='k', linewidth=1, linestyle='--', alpha=0.5)
+    ax1.fill_between(min_series.index, min_series, y2=max_series,
+                     color=colors[1], alpha=0.075)
+    ax1.tick_params(axis='both', which='major', labelsize=16)
+    ax2.tick_params(axis='both', which='major', labelsize=16)
+    inset_ax = inset_axes(ax1,
+                          width="41%",
+                          height="90%",
+                          loc='lower right',
+                          bbox_to_anchor=(-0.005, 0.075, 1, 0.3),
+                          bbox_transform=ax1.transAxes)
+    inset_ax.set_xlabel(r'Effect Size ($\rm{\hat{\beta}}$)',
+                        fontsize=label_fontsize - 5, labelpad=-3)
+    inset_ax.set_ylabel('Frequency', fontsize=label_fontsize - 5)
+    inset_ax.hist(all_in_one_list, bins=50, color=colors[0],
+                  alpha=0.6, edgecolor='k')
+    ax1.set_title('A.', loc='left', fontsize=letter_fontsize, y=1.0, x=-.05)
+    ax2.set_title('B.', loc='left', fontsize=letter_fontsize, y=1.0, x=-.05)
+    ax1.set_axisbelow(True)
+    ax2.set_axisbelow(True)
+    ax1.grid(which = "both", linestyle='--', alpha=0.3)
+    ax2.grid(which = "both", linestyle='--', alpha=0.3)
+    sns.kdeplot(min_strap, color=colors[1], ax=ax2, common_norm=True)
+    sns.kdeplot(max_strap, color=colors[0], ax=ax2, common_norm=True)
+
+    legend_elements2 = [Line2D([0], [0], color=colors[1], lw=1, linestyle='-',
+                               label=r'Most Negative', alpha=0.7),
+                        Line2D([0], [0], color=colors[0], lw=1, linestyle='-',
+                               label=r'Least Negative', alpha=0.7), ]
+    ax2.legend(handles=legend_elements2, loc='upper right', frameon=True,
+               fontsize=label_fontsize - 4, framealpha=1, facecolor='w',
+               edgecolor=(0, 0, 0, 1))
+    sns.despine()
+    plt.savefig(os.path.join(figure_path, 'mcs_and_erhlich_seeds.pdf'), bbox_inches='tight')
+
+
 def combine_buffon_and_rw(figure_path):
     yf.pdr_override()
     btc_data = pdr.get_data_yahoo('BTC-USD', start="2021-05-08", end="2023-05-15")
@@ -416,36 +493,60 @@ def buffons_plotter(df, figure_path):
                 bbox_inches='tight')
 
 
-def plot_two_predictions(housing, first_wave_10k_stratified_list, figure_path):
-    fig, ((ax1, ax2)) = plt.subplots(1, 2, figsize=(15, 7.5))
+def plot_three_predictions(first_wave_10k_stratified_list, figure_path):
+    fig, ((ax1, ax2, ax3)) = plt.subplots(1, 3, figsize=(15, 7.5))
     colors = ['#001c54', '#E89818']
+    housing = pd.read_csv(os.path.join(os.getcwd(),
+                                       '..',
+                                       'data',
+                                       'housing',
+                                       'results',
+                                       'r2.csv'),
+                          index_col=0)
     housing = housing.reset_index()
-    print('Housing min: ', housing['r2'].min())
-    print('Housing max: ', housing['r2'].max())
+    mnist = pd.read_csv(os.path.join(os.path.join(os.getcwd(),
+                                                  '..',
+                                                  'data',
+                                                  'MNIST',
+                                                  'results',
+                                                  'mnist_results.csv')))
     print('Covid min: ', np.min(first_wave_10k_stratified_list))
     print('Covid max: ', np.max(first_wave_10k_stratified_list))
+    print('Covid mean: ', np.mean(first_wave_10k_stratified_list))
+    print('Housing min: ', housing['r2'].min())
+    print('Housing max: ', housing['r2'].max())
+    print('Housing mean: ', housing['r2'].mean())
+    print('MNIST min: ', mnist['correct'].min())
+    print('MNIST max: ', mnist['correct'].max())
+    print('MNIST mean: ', mnist['correct'].mean())
     nbins = 18
     letter_fontsize = 24
     label_fontsize = 18
     mpl.rcParams['font.family'] = 'Arial'
     csfont = {'fontname': 'Arial'}
-    sns.distplot(first_wave_10k_stratified_list,
-                 hist_kws={'facecolor': colors[0],
-                           'edgecolor': 'k',
-                           'alpha': 0.7},
-                 kde_kws={'color': colors[1]}, ax=ax1, bins=nbins)
-    sns.distplot(housing['r2'], hist_kws={'facecolor': colors[1],
-                                    'edgecolor': 'k',
-                                    'alpha': 0.7},
-                 kde_kws={'color': colors[0]}, ax=ax2, bins=nbins)
+    sns.histplot(first_wave_10k_stratified_list, edgecolor='k',
+                 color = colors[0], alpha=0.7, stat='density',
+                 ax=ax1, bins=nbins)
+    sns.kdeplot(first_wave_10k_stratified_list, color=colors[1], ax=ax1, common_norm=True)
+
+    sns.histplot(housing['r2'], edgecolor='k',
+                 color = colors[1], alpha=0.7, stat='density',
+                 ax=ax2, bins=nbins)
+    sns.kdeplot(housing['r2'], color=colors[0], ax=ax2, common_norm=True)
+
+    sns.histplot(mnist['correct'], edgecolor='k',
+                 color = colors[0], alpha=0.7, stat='density',
+                 ax=ax3, bins=nbins)
+    sns.kdeplot(mnist['correct'], color=colors[1], ax=ax3, common_norm=True)
     ax1.set_ylabel('Density', fontsize=label_fontsize + 2)
     ax2.set_ylabel('')
+    ax3.set_ylabel('')
     ax1.set_xlabel('ROC-AUC', fontsize=label_fontsize + 2)
     ax2.set_xlabel('R$^2$', fontsize=label_fontsize + 2)
-
+    ax3.set_xlabel('Accuracy', fontsize=label_fontsize + 2)
     ax1.set_title('A.', loc='left', fontsize=letter_fontsize, y=1.035)
     ax2.set_title('B.', loc='left', fontsize=letter_fontsize, y=1.035)
-
+    ax3.set_title('C.', loc='left', fontsize=letter_fontsize, y=1.035)
     legend_elements1 = [Patch(facecolor=colors[0], edgecolor='k',
                               label=r'Bins', alpha=0.7),
                         Line2D([0], [0], color=colors[1], lw=1, linestyle='-',
@@ -462,31 +563,43 @@ def plot_two_predictions(housing, first_wave_10k_stratified_list, figure_path):
                fontsize=label_fontsize - 2, framealpha=1, facecolor='w',
                edgecolor=(0, 0, 0, 1)
                )
-
-    for ax in [ax1, ax2]:
+    ax3.legend(handles=legend_elements1, loc='center left', frameon=True,
+               fontsize=label_fontsize - 2, framealpha=1, facecolor='w',
+               edgecolor=(0, 0, 0, 1)
+               )
+    for ax in [ax1, ax2, ax3]:
         ax.tick_params(axis='both', which='major', labelsize=16)
         ax.set_ylim(ax.get_ylim()[0], ax.get_ylim()[1] + ax.get_ylim()[1] / 7)
     mean = round(np.nanmean(first_wave_10k_stratified_list), 3)
     var = round(np.nanstd(first_wave_10k_stratified_list), 3)
     ax1.annotate('E(ROC-AUC) = ' + str(mean) + ', $\sigma$(ROC-AUC) = ' + str(var),
                  xy=(0.5, 0.875), xytext=(0.5, 0.925), xycoords='axes fraction',
-                 fontsize=16, ha='center', va='bottom',
+                 fontsize=13, ha='center', va='bottom',
                  bbox=dict(boxstyle='round,pad=0.35', fc='white'),
-                 arrowprops=dict(arrowstyle='-[, widthB=10.0, lengthB=1',
+                 arrowprops=dict(arrowstyle='-[, widthB=9.0, lengthB=1',
                                  lw=1.0))
-
     mean = round(np.nanmean(housing['r2']), 3)
     var = round(np.nanstd(housing['r2']), 3)
     ax2.annotate('E(R$^2$) = ' + str(mean) + ', $\sigma$(R$^2$) = ' + str(var),
                  xy=(0.5, 0.875), xytext=(0.5, 0.925), xycoords='axes fraction',
-                 fontsize=16, ha='center', va='bottom',
+                 fontsize=13, ha='center', va='bottom',
                  bbox=dict(boxstyle='round,pad=0.35', fc='white'),
-                 arrowprops=dict(arrowstyle='-[, widthB=10.0, lengthB=1',
+                 arrowprops=dict(arrowstyle='-[, widthB=9.0, lengthB=1',
+                                 lw=1.0))
+    mean = round(np.nanmean(mnist['correct']), 3)
+    var = round(np.nanstd(mnist['correct']), 3)
+    ax3.annotate('E(acc) = ' + str(mean) + ', $\sigma$(acc) = ' + str(var),
+                 xy=(0.5, 0.875), xytext=(0.5, 0.925), xycoords='axes fraction',
+                 fontsize=13, ha='center', va='bottom',
+                 bbox=dict(boxstyle='round,pad=0.35', fc='white'),
+                 arrowprops=dict(arrowstyle='-[, widthB=9.0, lengthB=1',
                                  lw=1.0))
     ax1.set_axisbelow(True)
     ax2.set_axisbelow(True)
+    ax3.set_axisbelow(True)
     ax1.grid(which="both", linestyle='--', alpha=0.3)
     ax2.grid(which="both", linestyle='--', alpha=0.3)
+    ax3.grid(which="both", linestyle='--', alpha=0.3)
     sns.despine()
     plt.tight_layout()
     plt.savefig(os.path.join(figure_path, 'prediction_seeds.pdf'), bbox_inches='tight')
