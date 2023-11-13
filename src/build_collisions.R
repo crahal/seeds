@@ -1,7 +1,7 @@
 seeds <- as.integer(readLines(file.path("..", "assets", "seed_list.txt")))
 
 # Set the number of iterations
-num_iterations <- 1000 # length(seeds)
+num_iterations <- 10000 # length(seeds)
 n <- 1000000
 
 # Initialize a list to store the output (cumulative sums of duplicates)
@@ -45,14 +45,8 @@ for (i in 1:num_iterations) {
 # Close the progress bar
 close(pb)
 
-cat("\n")  # Move to the next line after the loop
-
-# Save the list of cumulative sums to a CSV file
-max_length <- max(sapply(output_list, length))
-output_list_padded <- lapply(output_list, function(x) c(x, rep(NA, max_length - length(x))))
-
 # Convert to data frame with sequential column names
-output_df <- as.data.frame(output_list_padded)
+output_df <- as.data.frame(output_list)
 colnames(output_df) <- 1:ncol(output_df)
 
 # Save the data frame to a CSV file
