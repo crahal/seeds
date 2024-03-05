@@ -1,9 +1,10 @@
+# Based on: https://arxiv.org/pdf/2003.08009.pdf
 library(dqrng)
 
 seeds <- as.integer(readLines(file.path("..", "assets", "seed_list.txt")))
 
 # Set the number of iterations
-num_iterations <- 5 # length(seeds)
+num_iterations <- 10000 # length(seeds)
 n <- 1000000
 
 # Initialize a list to store the output (cumulative sums of duplicates)
@@ -17,6 +18,7 @@ start_time <- Sys.time()
 pb <- txtProgressBar(min = 0, max = num_iterations, style = 3)
 
 # Loop through the specified number of iterations
+
 for (i in 1:num_iterations) {
   
   # Set a new seed for each iteration
