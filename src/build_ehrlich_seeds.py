@@ -61,16 +61,16 @@ def outter_wrapper(new_seed_list):
 
 
 if __name__ == "__main__":
-  seed_list_path = os.path.join(os.getcwd(), '..', 'assets',
+    seed_list_path = os.path.join(os.getcwd(), '..', 'assets',
                                 'seed_list_of_lists.txt')
-  seed_lists = pd.read_csv(seed_list_path, header=None)
-  print_full_model()
-  n_cores = 6
-  pool = mp.Pool(n_cores)
-  df = get_data()
-  model_vars = ['lnprob', 'lntime', 'lnwealth', 'lnineq', 'lnnw']
-  straps = []
-  list_of_lists = seed_lists.T.values.tolist()
-  all_results = list(tqdm(pool.imap(outter_wrapper, list_of_lists),
-                          total=len(list_of_lists)))
-  save_results(all_results)
+    seed_lists = pd.read_csv(seed_list_path, header=None)
+    print_full_model()
+    n_cores = 6
+    pool = mp.Pool(n_cores)
+    df = get_data()
+    model_vars = ['lnprob', 'lntime', 'lnwealth', 'lnineq', 'lnnw']
+    straps = []
+    list_of_lists = seed_lists.T.values.tolist()
+    all_results = list(tqdm(pool.imap(outter_wrapper, list_of_lists),
+                            total=len(list_of_lists)))
+    save_results(all_results)

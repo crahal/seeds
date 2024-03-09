@@ -4,7 +4,7 @@ library(dqrng)
 seeds <- as.integer(readLines(file.path("..", "assets", "seed_list.txt")))
 
 # Set the number of iterations
-num_iterations <- 10000 # length(seeds)
+num_iterations <- 100 # length(seeds)
 n <- 1000000
 
 # Initialize a list to store the output (cumulative sums of duplicates)
@@ -33,7 +33,7 @@ for (i in 1:num_iterations) {
   I_32 <- duplicated(U_32)
   
   # Store the cumulative sums in the list
-  output_list_32[[i]] <- cumsum(I_32)
+  output_list_32[[i]] <- cumsum(duplicated(U_32))
   output_list_64[i] <- sum(duplicated(U_64))
   # Increment the progress bar
   setTxtProgressBar(pb, i)
@@ -54,12 +54,12 @@ for (i in 1:num_iterations) {
 close(pb)
 
 # Convert to data frame with sequential column names
-output_df_32 <- as.data.frame(output_list_32)
-colnames(output_df_32) <- 1:ncol(output_df_32)
+#output_df_32 <- as.data.frame(output_list_32)
+#colnames(output_df_32) <- 1:ncol(output_df_32)
 
 # Save the data frame to a CSV file
 output_file_32 <- file.path("..", "data", "collisions", "output_list_32_R.csv")
-write.csv(output_df, file = output_file_32, row.names = FALSE)
+write.csv(output_list_32, file = output_file_32, row.names = FALSE)
 
 output_file_64 <- file.path("..", "data", "collisions", "output_array_64_R.csv")
 write.csv(output_list_64, file = output_file_64, row.names = FALSE)
