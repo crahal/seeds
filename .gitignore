@@ -1,3 +1,6 @@
+#Custom
+
+src/symptom_tracker_vm_extract/*
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -139,3 +142,16 @@ data/*
 /.idea/seeds.iml
 /.idea/vcs.xml
 /.idea/workspace.xml
+/.idea/workspace (rosso's conflicted copy 2023-06-10).xml
+/talks/ox_ber/seeds.aux
+/src/bayesian_seeds_example.ipynb
+/talks/ox_ber/seeds.toc
+/talks/ox_ber/seeds.out
+/talks/ox_ber/seeds.snm
+/.idea/.gitignore
+/assets/seed_list_of_lists.7z
+/talks/ox_ber/seeds.nav
+/talks/ox_ber/seeds.synctex.gz
+/talks/ox_ber/seeds.tex
+/talks/ox_ber/figures/Uni_Oxford_logo.pdf
+/src/.Rhistory

@@ -1,6 +1,7 @@
 import ast
 import os
 import math
+import json
 import numpy as np
 import pandas as pd
 import yfinance as yf
@@ -14,6 +15,413 @@ from pandas_datareader import data as pdr
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
 
+def plot_collisions(figure_path):
+    chunk_size = 10000
+    path = os.path.join(os.getcwd(),
+                        '..',
+                        'data',
+                        'collisions',
+                        'output_list_32_R.csv')
+    csv_reader = pd.read_csv(path, chunksize=chunk_size)
+    df = pd.DataFrame()
+    for i, chunk in enumerate(csv_reader):
+        temp_df = pd.concat([chunk.min(axis=1),
+                             chunk.median(axis=1),
+                             chunk.max(axis=1)],
+                            axis=1)
+        df = pd.concat([df, temp_df], axis=0)
+
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 7))
+    colors = ['#001c54', '#E89818', '#8b0000']
+    fill_color = (255 / 255, 223 / 255, 0 / 255, 19 / 255)
+
+    df[0].plot(color=colors[1], linestyle='--', ax=ax2)
+    df[1].plot(color=colors[0], linestyle='-', ax=ax2)
+    df[2].plot(color=colors[2], linestyle='--', ax=ax2)
+
+    ax2.fill_between(df.index, df[0], df[2],
+                     color=fill_color)
+
+    ax1.grid(which="both", linestyle='--', alpha=0.3)
+    ax2.grid(which="both", linestyle='--', alpha=0.3)
+
+    ax1.tick_params(width=1, length=8, axis='both', which='major', labelsize=14)
+    ax2.tick_params(width=1, length=8, axis='both', which='major', labelsize=14)
+    ax1.set_title('a.', loc='left', fontsize=24, y=1.0)
+    ax2.set_title('b.', loc='left', fontsize=24, y=1.0)
+
+    legend_elements2 = [
+        Line2D([0], [0], color=colors[0], lw=2, linestyle='-',
+               label=r'Min Collisions', alpha=0.7),
+        Line2D([0], [0], color=colors[2], lw=2, linestyle='-',
+               label=r'Max Collions', alpha=0.8),
+        Line2D([0], [0], color=colors[1], lw=2, linestyle='--',
+               label=r'Median Collisions', alpha=0.7),
+        Patch(facecolor=fill_color, edgecolor=(0, 0, 0, 1),
+              label=r'Seed Variance')]
+    ax2.legend(handles=legend_elements2, loc='upper left', frameon=True,
+               fontsize=13, framealpha=1, facecolor='w',
+               edgecolor=(0, 0, 0, 1), ncols=2
+               )
+    ax2.hlines(116, df.index[0], df.index[-1],
+               color='k', linestyle='--', alpha=.75)
+    ax2.set_xlim(0, 1000000)
+
+
+    ax2.annotate('Expectation',
+                 xy=(125000, 118), xytext=(125000, 118),
+                 fontsize=13, ha='center', va='bottom',
+                )
+
+    final_collisions = chunk.iloc[-1]
+
+    nbins = 25
+    sns.histplot(final_collisions,
+                 ax=ax1,
+                 color=colors[0],
+                 bins=nbins,
+                 alpha=0.9
+                )
+    ax1_twin = ax1.twinx()
+    sns.kdeplot(final_collisions,
+                ax=ax1_twin,
+                color=colors[1],
+                linestyle='--',
+                linewidth=2
+               )
+    ax1.set_ylim(0, 1500)
+    ax1_twin.set_ylim(0, 0.045)
+
+    ax1.annotate('$\mu$ = ' + str(np.round(np.mean(final_collisions), 2)) + ', $\sigma$ = ' +
+                 str(np.round(np.std(final_collisions), 3)),
+                 xy=(0.5, 0.875), xytext=(0.5, 0.925), xycoords='axes fraction',
+                 fontsize=13, ha='center', va='bottom',
+                 bbox=dict(boxstyle='round,pad=0.35', fc='white'),
+                 arrowprops=dict(arrowstyle='-[, widthB=9.0, lengthB=1',
+                                lw=1.0))
+
+    ax2.set_xlabel('Sample size', fontsize=16)
+    ax2.set_ylabel('Number of 32-bit collisions', fontsize=16)
+    ax1_twin.tick_params(width=1, length=8, axis='both', which='major', labelsize=14)
+    ax1.set_xlabel('Number of collisions', fontsize=16)
+    ax1.set_ylabel('Count of collisions', fontsize=16)
+    ax1_twin.set_ylabel('Density of collisions', fontsize=16)
+    plt.tight_layout()
+
+    ax1.set_axisbelow(True)
+    ax2.set_axisbelow(True)
+
+    filename='collisions'
+    plt.savefig(os.path.join(figure_path, filename + '.pdf'),
+                bbox_inches='tight')
+
+
+
+def plot_four_simple_examples(figure_path):
+    # Load data for 1a here
+    file_path_100 = os.path.join(os.getcwd(),
+                                 '..',
+                                 'data',
+                                 'rnom',
+                                 'rnom_samples100_seeds100000_results.json')
+    with open(file_path_100, 'r') as file:
+        data_dict_100 = json.load(file)
+
+    # Load data for 1b here
+    df_buffon = pd.read_csv(os.path.join(os.getcwd(),
+                                         '..', 'data',
+                                         'needles',
+                                         'results',
+                                         'throw100_25000_5000seeds.csv'),
+                            names=['Throws', 'Min', '25th_PC',
+                                   'Median', '75th_PC', 'Max'])
+
+    # Load data for 1c here
+    results_path = os.path.join(os.getcwd(), '..', 'data', 'mcs',
+                                'results', 'merged_files',
+                                'merged_csvs.csv')
+    df = pd.read_csv(results_path, index_col=False)
+    min_series = df.min(axis=1).sort_values().reset_index()[0]
+    max_series = df.max(axis=1).sort_values().reset_index()[0]
+    med_series = df.median(axis=1).sort_values().reset_index()[0]
+    all_in_one_list = list(df.melt().drop('variable', axis=1).rename({'value': 'A'},
+                                                                     axis=1)['A'])
+
+    # Load data for 1d here
+    size = 366
+    btc_data = yf.download('BTC-USD', start="2021-05-08", end="2023-05-15")
+    rw_path = os.path.join(os.getcwd(), '..', 'data', 'random_walk', 'random_walks.csv')
+    random_walks = pd.read_csv(rw_path, header=None)
+    btc_data = btc_data / 1000
+    random_walks = random_walks / 1000
+    index = pd.DataFrame(index=btc_data.index +
+                               pd.DateOffset(len(btc_data) + 1))[0:size + 1].index
+    random_walks.index = index
+    rw_index = random_walks.index
+    rw_min = random_walks.min(axis=1)
+    rw_max = random_walks.max(axis=1)
+    rw_med = random_walks.median(axis=1)
+
+    # Start figure here
+    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(14, 11))
+    colors = ['#001c54', (255 / 255, 223 / 255, 0 / 255, 19 / 255), '#8b0000']
+    letter_fontsize = 24
+    label_fontsize = 18
+    mpl.rcParams['font.family'] = 'Helvetica'
+    nbins = 20
+
+    #################
+    # Figure 1a here#
+    #################
+    colors = ['#001c54', '#E89818']
+    sns.histplot(data_dict_100['max_list'],
+                 ax=ax1,
+                 color=colors[0],
+                 bins=nbins, alpha=1)
+    ax1_twin = ax1.twinx()
+    sns.kdeplot(data_dict_100['max_list'],
+                ax=ax1_twin,
+                color=colors[0],
+                linestyle='--')
+    ax1_twin.set_ylim(0, .4)
+
+    sns.histplot(data_dict_100['min_list'],
+                 ax=ax1,
+                 color=colors[1],
+                 bins=nbins, alpha=1)
+    sns.kdeplot(data_dict_100['min_list'],
+                ax=ax1_twin,
+                color=colors[1],
+                linestyle='--',
+                alpha=1)
+    ax1_twin.set_ylim(0, .4)
+
+    legend_elements1 = [
+        Patch(facecolor=colors[0], edgecolor=(0, 0, 0, 1),
+              label=r'Maximal Sum'),
+        Patch(facecolor=colors[1], edgecolor=(0, 0, 0, 1),
+              label=r'Minimal Sum')]
+
+    ax1.legend(handles=legend_elements1, loc='upper right', frameon=True,
+               fontsize=12, framealpha=1, facecolor='w',
+               edgecolor=(0, 0, 0, 1), ncols=1
+               )
+    ax1_twin.yaxis.set_label_position("right")
+    ax1_twin.yaxis.tick_right()
+    ax1_twin.set_ylabel('Density', fontsize=16)
+    ax1.set_ylabel('Count', fontsize=16)
+    ax1.set_xlabel('Draw', fontsize=16)
+
+    #################
+    # Figure 1b here#
+    #################
+    colors = ['#001c54', (255 / 255, 223 / 255, 0 / 255, 19 / 255), '#8b0000']
+    df_buffon = df_buffon.set_index('Throws')
+    df_buffon = df_buffon[45:]
+    ax2.plot(df_buffon['Min'], color=colors[0], alpha=0.8)
+    ax2.plot(df_buffon['Max'], color=colors[2], alpha=0.8)
+    ax2.set_xlim(0, df_buffon.index[-1] + 500)
+    ax2.set_ylim(2.225, 4.5)
+    ax2.hlines(math.pi, df_buffon.index[0] + 500, df_buffon.index[-1],
+               color='k', linestyle='--', alpha=.5)
+    ax2.fill_between(df_buffon.index, df_buffon['Min'], df_buffon['Max'],
+                     color=colors[1])
+    ax2.set_xlabel('Number of Throws', fontsize=16)
+    ax2.set_ylabel(r'Estimate of $\mathrm{\pi}$', fontsize=16)
+    ax2.tick_params(axis='both', which='major', labelsize=14,
+                    width=1, length=8)
+    legend_elements2 = [
+        Line2D([0], [0], color=colors[0], lw=2, linestyle='-',
+               label=r'Upper Limit', alpha=0.7),
+        Line2D([0], [0], color=colors[2], lw=2, linestyle='-',
+               label=r'Lower Limit', alpha=0.7),
+        Line2D([0], [0], color='k', lw=2, linestyle='--',
+               label=r'$\mathrm{\pi}$', alpha=0.7),
+        Patch(facecolor=colors[1], edgecolor=(0, 0, 0, 1),
+              label=r'Range')
+    ]
+    ax2.legend(handles=legend_elements2, loc='upper right', frameon=True,
+               fontsize=label_fontsize - 4, framealpha=1, facecolor='w',
+               edgecolor=(0, 0, 0, 1), ncols=2
+               )
+
+    #################
+    # Figure 1c here#
+    #################
+    ax3.plot(min_series.index, min_series,
+             color=colors[1], linestyle='-',
+             alpha=0.8)
+    ax3.plot(max_series.index, max_series,
+             color=colors[1], linestyle='-',
+             alpha=0.8)
+    ax3.plot(med_series.index, med_series,
+             color=colors[0], linestyle='--',
+             alpha=0.8)
+    ax3.set_ylabel(r'Effect Size ($\rm{\hat{\beta}}$)',
+                   fontsize=16)
+    ax3.set_xlabel(r'Specification (n)',
+                   fontsize=16)
+    legend_elements3 = [Line2D([0], [0],
+                               color=colors[0],
+                               lw=1,
+                               linestyle='--',
+                               label=r'Median',
+                               alpha=0.7),
+                        Line2D([0], [0],
+                               color=colors[1],
+                               lw=1, linestyle='-',
+                               label=r'Min\Max',
+                               alpha=0.7), ]
+    ax3.legend(handles=legend_elements3,
+               loc='upper left', frameon=True,
+               fontsize=label_fontsize - 4,
+               framealpha=1, facecolor='w',
+               edgecolor=(0, 0, 0, 1))
+    ax3.hlines(y=0,
+               xmin=ax3.get_xlim()[0],
+               xmax=ax3.get_xlim()[1],
+               color='k',
+               linewidth=1,
+               linestyle='--',
+               alpha=0.5)
+    ax3.fill_between(min_series.index,
+                     min_series,
+                     y2=max_series,
+                     color=colors[1],
+                     alpha=0.075)
+
+    inset_ax = inset_axes(ax3,
+                          width="37%",
+                          height="85%",
+                          loc='lower right',
+                          bbox_to_anchor=(-0.005, 0.0975, 1, 0.295),
+                          bbox_transform=ax3.transAxes)
+    inset_ax.set_xlabel(r'Effect Size ($\rm{\hat{\beta}}$)',
+                        fontsize=label_fontsize - 5, labelpad=-3)
+    inset_ax.set_ylabel('Frequency', fontsize=label_fontsize - 5)
+    inset_ax.hist(all_in_one_list, bins=50, color=colors[0],
+                  alpha=0.6, edgecolor='k')
+    letter_fontsize = 24
+    label_fontsize = 18
+    mpl.rcParams['font.family'] = 'Helvetica'
+    colors = ['#001c54', (255 / 255, 223 / 255, 0 / 255, 10 / 255), '#8b0000']
+
+    #################
+    # Figure 1d here#
+    #################
+    btc_data['Close'].plot(ax=ax4, color=colors[0])
+    rw_min.plot(ax=ax4, color=colors[1], alpha=0.8)
+    rw_max.plot(ax=ax4, color=colors[1], alpha=0.8)
+    rw_med.plot(ax=ax4, color='k', linestyle='--', alpha=.5)
+    legend_elements2 = [
+        Line2D([0], [0], color=colors[0], lw=2, linestyle='-',
+               label=r'In-sample', alpha=0.7),
+        Line2D([0], [0], color=colors[1], lw=2, linestyle='-',
+               label=r'Min/Max', alpha=0.8),
+        Line2D([0], [0], color='k', lw=2, linestyle='--',
+               label=r'Median', alpha=0.7),
+        Patch(facecolor=colors[1], edgecolor=(0, 0, 0, 1),
+              label=r'Range')]
+    ax4.legend(handles=legend_elements2, loc='upper left', frameon=True,
+               fontsize=label_fontsize - 4, framealpha=1, facecolor='w',
+               edgecolor=(0, 0, 0, 1), ncols=2
+               )
+    ylabels = ['${:,.0f}'.format(x) + 'k' for x in ax4.get_yticks()]
+    ax4.set_ylabel(r'Price', fontsize=16)
+    ax4.set_yticklabels(ylabels)
+    ax4.set_xlabel('')
+    ax4.fill_between(rw_index, rw_min, rw_max, color=colors[1])
+
+    ax1.grid(which="both", linestyle='--', alpha=0.3)
+    ax2.grid(which="both", linestyle='--', alpha=0.3)
+    ax3.grid(which="both", linestyle='--', alpha=0.3)
+    ax4.grid(which="major", linestyle='--', alpha=0.3)
+
+    ax2.tick_params(width=1, length=8, axis='both', which='major', labelsize=14)
+    ax1.set_title('a.', loc='left', fontsize=letter_fontsize, y=1.0)
+    ax2.set_title('b.', loc='left', fontsize=letter_fontsize, y=1.0)
+    ax3.set_title('c.', loc='left', fontsize=letter_fontsize, y=1.0)
+    ax4.set_title('d.', loc='left', fontsize=letter_fontsize, y=1.0)
+
+    ax2.tick_params(width=1, length=8)
+    ax2.set_zorder(3)
+
+    ax1.set_axisbelow(True)
+    ax2.set_axisbelow(True)
+    ax3.set_axisbelow(True)
+    ax4.set_axisbelow(True)
+
+    ax1.tick_params(axis='both', which='major', labelsize=14)
+    ax1_twin.tick_params(axis='both', which='major', labelsize=14)
+    ax2.tick_params(axis='both', which='major', labelsize=14)
+    ax3.tick_params(axis='both', which='major', labelsize=14)
+    ax4.tick_params(axis='both', which='major', labelsize=14)
+
+    plt.tight_layout()
+    filename = 'four_simple_examples'
+    plt.savefig(os.path.join(figure_path, filename + '.pdf'),
+                bbox_inches='tight')
+
+
+def plot_mvprobit(figure_path):
+    df = pd.read_csv(os.path.join(os.getcwd(),
+                                  '..',
+                                  'data',
+                                  'mvprobit',
+                                  'results_school_total_draws150_total_seeds1000.csv')
+                    )
+    new_df = pd.DataFrame(index=df['draws'].unique())
+    for draw in df['draws'].unique():
+        new_df.at[draw, 'Min'] = df[df['draws']==draw]['rho21'].min()
+        new_df.at[draw, 'Max'] = df[df['draws']==draw]['rho21'].max()
+        new_df.at[draw, 'Median'] = df[df['draws']==draw]['rho21'].median()
+
+    fig, (ax1) = plt.subplots(1, 1, figsize=(12, 4))
+    colors = ['#001c54', (255/255, 223/255, 0/255, 10/255), '#8b0000']
+    mpl.rcParams['font.family'] = 'Helvetica'
+    new_df['Median'].plot(ax=ax1, color=colors[0])
+    new_df['Max'].plot(ax=ax1, linestyle='--', color=colors[2])
+    new_df['Min'].plot(ax=ax1, linestyle='--', color=colors[2])
+
+    ax1.grid(which = "both", linestyle='--', alpha=0.25)
+
+    ax1.set_title('a.', loc='left', fontsize=18)
+    ax1.set_xlabel('Number of Draws', fontsize=14)
+    ax1.set_ylabel("Simulated Maximum \n " +
+                   r"Likelihood Estimate of $\rho_{21}$", fontsize=14)
+
+    ax1.fill_between(new_df.index, new_df.min(axis=1),
+                     new_df.max(axis=1), color=colors[1])
+
+    legend_elements2 = [
+        Line2D([0], [0], color=colors[0], lw=2, linestyle='-',
+               label=r'Median', alpha=0.7),
+       Line2D([0], [0], color=colors[2], lw=2, linestyle='--',
+               label=r'Min/Max', alpha=0.7),
+       Line2D([0], [0], color='k',linewidth=0.5, linestyle='dashed', alpha=.75,
+               label=r'ML Estimate'),
+        Patch(facecolor=colors[1], edgecolor=(0,0,0,1),
+              label=r'Seed Variance')]
+    ax1.legend(handles=legend_elements2, loc='upper right', frameon=True,
+               fontsize=12, framealpha=1, facecolor='w',
+               edgecolor=(0, 0, 0, 1), ncols=2
+              )
+    plt.hlines(y=-0.270, xmin=2, xmax=150,
+               color='k', linewidth=0.5, linestyle='dashed', alpha=.75)
+    ax1.set_xlim(0, 152)
+    print(r'Min value of $\rho_{21}$ at 2 draws:',
+          df[df['draws'] == 2]['rho21'].min())
+    print(r'Max value of $\rho_{21}$ at 2 draws:',
+          df[df['draws'] == 2]['rho21'].max())
+    print(r'Min value of $\rho_{21}$ at 150 draws:',
+          df[df['draws'] == 150]['rho21'].min())
+    print(r'Max value of $\rho_{21}$ at 150 draws:',
+          df[df['draws'] == 150]['rho21'].max())
+
+    plt.savefig(os.path.join(figure_path, 'mvprobit' + '.pdf'),
+                bbox_inches = 'tight')
+
 
 def plot_two_inference(figure_path):
     results_path = os.path.join(os.getcwd(), '..', 'data', 'mcs',
@@ -24,27 +432,16 @@ def plot_two_inference(figure_path):
     max_series = df.max(axis=1).sort_values().reset_index()[0]
     med_series = df.median(axis=1).sort_values().reset_index()[0]
     all_in_one_list = list(df.melt().drop('variable',axis=1).rename({'value':'A'},axis=1)['A'])
-    ehrlich_path = os.path.join(os.getcwd(), '..', 'data',
-                                  'ehrlich', 'results',
-                                  'ehrlich_bootstraps.csv')
-    df = pd.read_csv(ehrlich_path, index_col=0, header=None, low_memory=False)
-    df = df.reset_index().drop(0, axis=1)
-    df = df.apply(pd.to_numeric, errors='coerce')
-    min_strap = df[df.mean().argmin()]
-    max_strap = df[df.mean().argmax()]
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 8))
     figure_path = os.path.join(os.getcwd(), '..', 'figures')
     colors = ['#001c54', '#E89818']
-    nbins = 18
     letter_fontsize = 24
     label_fontsize = 18
     mpl.rcParams['font.family'] = 'Arial'
-    csfont = {'fontname': 'Arial'}
     ax1.plot(min_series.index, min_series, color=colors[1], linestyle='-', alpha=0.8)
     ax1.plot(max_series.index, max_series, color=colors[1], linestyle='-', alpha=0.8)
     ax1.plot(med_series.index, med_series, color=colors[0], linestyle='--', alpha=0.8)
     ax1.set_ylabel(r'Effect Size ($\rm{\hat{\beta}}$)', fontsize=label_fontsize)
-    ax2.set_ylabel('Density', fontsize=label_fontsize)
     ax1.set_xlabel(r'Specification (n)', fontsize=label_fontsize)
     ax2.set_xlabel(r'Effect Size ($\rm{\hat{\beta}}$)', fontsize=label_fontsize)
     legend_elements1 = [Line2D([0], [0], color=colors[0], lw=1, linestyle='--',
@@ -77,16 +474,54 @@ def plot_two_inference(figure_path):
     ax2.set_axisbelow(True)
     ax1.grid(which = "both", linestyle='--', alpha=0.3)
     ax2.grid(which = "both", linestyle='--', alpha=0.3)
-    sns.kdeplot(min_strap, color=colors[1], ax=ax2, common_norm=True)
-    sns.kdeplot(max_strap, color=colors[0], ax=ax2, common_norm=True)
 
-    legend_elements2 = [Line2D([0], [0], color=colors[1], lw=1, linestyle='-',
-                               label=r'Most Negative', alpha=0.7),
-                        Line2D([0], [0], color=colors[0], lw=1, linestyle='-',
-                               label=r'Least Negative', alpha=0.7), ]
-    ax2.legend(handles=legend_elements2, loc='upper right', frameon=True,
-               fontsize=label_fontsize - 4, framealpha=1, facecolor='w',
-               edgecolor=(0, 0, 0, 1))
+    btc_data = pdr.get_data_yahoo('BTC-USD', start="2021-05-08", end="2023-05-15")
+    letter_fontsize = 24
+    label_fontsize = 18
+    mpl.rcParams['font.family'] = 'Helvetica'
+    colors = ['#001c54', (255/255, 223/255, 0/255, 10/255), '#8b0000']
+    size = 366
+    rw_path = os.path.join(os.getcwd(), '..', 'data', 'random_walk', 'random_walks.csv')
+    random_walks = pd.read_csv(rw_path, header=None)
+    btc_data = btc_data/1000
+    random_walks = random_walks/1000
+    index= pd.DataFrame(index=btc_data.index + pd.DateOffset(len(btc_data)+1))[0:size+1].index
+    random_walks.index = index
+    btc_data['Close'].plot(ax=ax2, color = colors[0])
+    random_walks.min(axis=1).plot(ax=ax2, color = colors[2])
+    random_walks.max(axis=1).plot(ax=ax2, color = colors[2])
+    random_walks.median(axis=1).plot(ax=ax2, color = 'k', linestyle='--', alpha=.5)
+    legend_elements2 = [
+        Line2D([0], [0], color=colors[0], lw=2, linestyle='-',
+               label=r'In-sample', alpha=0.7),
+       Line2D([0], [0], color=colors[2], lw=2, linestyle='-',
+               label=r'Min/Max', alpha=0.7),
+        Line2D([0], [0], color='k', lw=2, linestyle='--',
+               label=r'Median', alpha=0.7),
+        Patch(facecolor=colors[1], edgecolor=(0,0,0,1),
+                              label=r'Range')]
+    ax2.legend(handles=legend_elements2, loc='upper left', frameon=True,
+               fontsize=label_fontsize-4, framealpha=1, facecolor='w',
+               edgecolor=(0, 0, 0, 1), ncols=2
+              )
+    ylabels = ['${:,.0f}'.format(x) + 'k' for x in ax2.get_yticks()]
+    ax2.set_yticklabels(ylabels)
+    ax2.set_xlabel('')
+    ax2.fill_between(random_walks.index, random_walks.min(axis=1),
+                     random_walks.max(axis=1), color=colors[1])
+    ax1.set_title('A.', loc='left', fontsize=letter_fontsize, y=1.0)
+    ax2.set_title('B.', loc='left', fontsize=letter_fontsize, y=1.0)
+    ax2.tick_params(width=1, length=8)
+    ax2.set_ylabel(r'Price', fontsize=label_fontsize)
+    ax2.tick_params(axis='both', which='major', labelsize=14)
+    ax2.set_axisbelow(True)
+    ax2.grid(which="major", linestyle='--', alpha=0.3)
+    ax2.set_zorder(3)
+    sns.despine()
+    plt.tight_layout()
+    filename = 'plot_two_inference'
+    plt.savefig(os.path.join(figure_path, filename + '.pdf'),
+                bbox_inches = 'tight')
     sns.despine()
     plt.savefig(os.path.join(figure_path, 'mcs_and_erhlich_seeds.pdf'), bbox_inches='tight')
 
@@ -104,7 +539,7 @@ def combine_buffon_and_rw(figure_path):
     letter_fontsize = 24
     label_fontsize = 18
     mpl.rcParams['font.family'] = 'Helvetica'
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 7))
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 8))
     df = df.set_index('Throws')
     df = df[45:]
     colors = ['#001c54', (255/255, 223/255, 0/255, 10/255), '#8b0000']
@@ -186,6 +621,11 @@ def ffc_plotter(df, figure_path):
                  (df['account']==model)][0:10000]
         title_list = ['A.', 'B.', 'C.', 'D.', 'E.', 'F.']
         title = title_list[counter]
+        print(str(outcome) + '. Min beta :' + str(np.round(df1['beta'].min(), 4)) +
+              '. Max beta: ' + str(np.round(df1['beta'].max(), 4)) +
+              '. Min R2: ' + str(np.round(df1['r2_holdout'].min(), 4)) +
+              '. Max R2: ' + str(np.round(df1['r2_holdout'].max(), 4))
+              )
         g = sns.jointplot(x=df1['beta'],
                           y=df1['r2_holdout'],
                           kind='hex',
@@ -454,24 +894,33 @@ def mca_plotter(figure_path):
     plt.savefig(os.path.join(figure_path, 'mcs_seeds.pdf'), bbox_inches='tight')
 
 
-def buffons_plotter(df, figure_path):
+def buffons_plotter(figure_path):
+    df = pd.read_csv(os.path.join(os.getcwd(),
+                                  '..', 'data',
+                                  'needles',
+                                  'results',
+                                  'throw100_25000_5000seeds.csv'),
+                    names = ['Throws', 'Min', '25th_PC',
+                    'Median', '75th_PC', 'Max'])
+    print('Buffons last row: ', df.iloc[-1])
     letter_fontsize = 24
     label_fontsize = 18
     mpl.rcParams['font.family'] = 'Arial'
-    fig, ax = plt.subplots(1, 1, figsize=(12, 5))
+    fig, ax = plt.subplots(1, 1, figsize=(14, 4.5))
     df = df.set_index('Throws')
     df = df[45:]
+    color_fill = '#E89818'
     colors = ['#001c54', '#F7EDD2', '#8b0000']
     ax.plot(df['Min'], color=colors[2])
     ax.plot(df['Max'], color=colors[0])
     ax.set_xlim(0, df.index[-1]+500)
     ax.set_ylim(2.225, 4.5)
     ax.hlines(math.pi, df.index[0]+500, df.index[-1], color='k', linestyle='--', alpha=0.5)
-    ax.fill_between(df.index, df['Min'], df['Max'], color=colors[1], alpha=1)
-    ax.set_xlabel('Number of Throws', fontsize=label_fontsize)
-    ax.set_ylabel(r'Estimate of $\mathrm{\pi}$', fontsize=label_fontsize)
+    ax.fill_between(df.index, df['Min'], df['Max'], color=color_fill, alpha=0.075)
+    ax.set_xlabel('Number of Throws', fontsize=16)
+    ax.set_ylabel(r'Estimate of $\mathrm{\pi}$', fontsize=16)
     ax.tick_params(axis='both', which='major', labelsize=14)
-    ax.set_title('A.', loc='left', fontsize=letter_fontsize, y=1.0, x=-.08)
+    ax.set_title('A.', loc='left', fontsize=16, y=1.025, x=-.025)
     ax.tick_params(width=1, length=8)
     legend_elements1 = [
         Line2D([0], [0], color=colors[0], lw=2, linestyle='-',
@@ -494,7 +943,7 @@ def buffons_plotter(df, figure_path):
 
 
 def plot_three_predictions(first_wave_10k_stratified_list, figure_path):
-    fig, ((ax1, ax2, ax3)) = plt.subplots(1, 3, figsize=(15, 7.5))
+    fig, ((ax1, ax2, ax3)) = plt.subplots(1, 3, figsize=(14, 6.5))
     colors = ['#001c54', '#E89818']
     housing = pd.read_csv(os.path.join(os.getcwd(),
                                        '..',
@@ -541,12 +990,12 @@ def plot_three_predictions(first_wave_10k_stratified_list, figure_path):
     ax1.set_ylabel('Density', fontsize=label_fontsize + 2)
     ax2.set_ylabel('')
     ax3.set_ylabel('')
-    ax1.set_xlabel('ROC-AUC', fontsize=label_fontsize + 2)
-    ax2.set_xlabel('R$^2$', fontsize=label_fontsize + 2)
-    ax3.set_xlabel('Accuracy', fontsize=label_fontsize + 2)
-    ax1.set_title('A.', loc='left', fontsize=letter_fontsize, y=1.035)
-    ax2.set_title('B.', loc='left', fontsize=letter_fontsize, y=1.035)
-    ax3.set_title('C.', loc='left', fontsize=letter_fontsize, y=1.035)
+    ax1.set_xlabel('ROC-AUC', fontsize=16)
+    ax2.set_xlabel('R$^2$', fontsize=16)
+    ax3.set_xlabel('Accuracy', fontsize=16)
+    ax1.set_title('a.', loc='left', fontsize=18, y=1.015, x=-0.075)
+    ax2.set_title('b.', loc='left', fontsize=18, y=1.015, x=-0.075)
+    ax3.set_title('c.', loc='left', fontsize=18, y=1.015, x=-0.075)
     legend_elements1 = [Patch(facecolor=colors[0], edgecolor='k',
                               label=r'Bins', alpha=0.7),
                         Line2D([0], [0], color=colors[1], lw=1, linestyle='-',
@@ -572,7 +1021,7 @@ def plot_three_predictions(first_wave_10k_stratified_list, figure_path):
         ax.set_ylim(ax.get_ylim()[0], ax.get_ylim()[1] + ax.get_ylim()[1] / 7)
     mean = round(np.nanmean(first_wave_10k_stratified_list), 3)
     var = round(np.nanstd(first_wave_10k_stratified_list), 3)
-    ax1.annotate('E(ROC-AUC) = ' + str(mean) + ', $\sigma$(ROC-AUC) = ' + str(var),
+    ax1.annotate('E(AUC) = ' + str(mean) + ', $\sigma$(AUC) = ' + str(var),
                  xy=(0.5, 0.875), xytext=(0.5, 0.925), xycoords='axes fraction',
                  fontsize=13, ha='center', va='bottom',
                  bbox=dict(boxstyle='round,pad=0.35', fc='white'),
