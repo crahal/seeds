@@ -15,6 +15,26 @@ from pandas_datareader import data as pdr
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
 
+def load_collisions():
+    chunk_size = 10000
+    path = os.path.join(os.getcwd(),
+                        '..',
+                        'data',
+                        'collisions',
+                        'output_list_32_R.csv')
+    csv_reader = pd.read_csv(path, chunksize=chunk_size)
+    collisions = pd.DataFrame()
+    for i, chunk in enumerate(csv_reader):
+        temp_df = pd.concat([chunk.min(axis=1),
+                             chunk.median(axis=1),
+                             chunk.max(axis=1)],
+                            axis=1)
+        collisions = pd.concat([collisions, temp_df],
+                               axis=0)
+    final_collisions = chunk.iloc[-1]
+    return collisions, final_collisions
+
+
 def plot_collisions(figure_path):
     chunk_size = 10000
     path = os.path.join(os.getcwd(),
@@ -100,7 +120,6 @@ def plot_collisions(figure_path):
                  bbox=dict(boxstyle='round,pad=0.35', fc='white'),
                  arrowprops=dict(arrowstyle='-[, widthB=9.0, lengthB=1',
                                 lw=1.0))
-
     ax2.set_xlabel('Sample size', fontsize=16)
     ax2.set_ylabel('Number of 32-bit collisions', fontsize=16)
     ax1_twin.tick_params(width=1, length=8, axis='both', which='major', labelsize=14)
@@ -115,7 +134,6 @@ def plot_collisions(figure_path):
     filename='collisions'
     plt.savefig(os.path.join(figure_path, filename + '.pdf'),
                 bbox_inches='tight')
-
 
 
 def plot_four_simple_examples(figure_path):
@@ -138,15 +156,18 @@ def plot_four_simple_examples(figure_path):
                                    'Median', '75th_PC', 'Max'])
 
     # Load data for 1c here
-    results_path = os.path.join(os.getcwd(), '..', 'data', 'mcs',
-                                'results', 'merged_files',
-                                'merged_csvs.csv')
-    df = pd.read_csv(results_path, index_col=False)
-    min_series = df.min(axis=1).sort_values().reset_index()[0]
-    max_series = df.max(axis=1).sort_values().reset_index()[0]
-    med_series = df.median(axis=1).sort_values().reset_index()[0]
-    all_in_one_list = list(df.melt().drop('variable', axis=1).rename({'value': 'A'},
-                                                                     axis=1)['A'])
+
+    collisions, final_collisions = load_collisions()
+
+    #    results_path = os.path.join(os.getcwd(), '..', 'data', 'mcs',
+    #                                'results', 'merged_files',
+    #                                'merged_csvs.csv')
+    #    df = pd.read_csv(results_path, index_col=False)
+    #    min_series = df.min(axis=1).sort_values().reset_index()[0]
+    #    max_series = df.max(axis=1).sort_values().reset_index()[0]
+    #    med_series = df.median(axis=1).sort_values().reset_index()[0]
+    #    all_in_one_list = list(df.melt().drop('variable', axis=1).rename({'value': 'A'},
+    #                                                                     axis=1)['A'])
 
     # Load data for 1d here
     size = 366
@@ -164,17 +185,22 @@ def plot_four_simple_examples(figure_path):
     rw_med = random_walks.median(axis=1)
 
     # Start figure here
-    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(14, 11))
-    colors = ['#001c54', (255 / 255, 223 / 255, 0 / 255, 19 / 255), '#8b0000']
+    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(14, 10.5))
     letter_fontsize = 24
     label_fontsize = 18
     mpl.rcParams['font.family'] = 'Helvetica'
     nbins = 20
 
     #################
+    # Colors
+    #################
+    colors = ['#001c54', '#E89818', '#8b0000']
+    fill_color = (255 / 255, 223 / 255, 0 / 255, 19 / 255)
+
+    #################
     # Figure 1a here#
     #################
-    colors = ['#001c54', '#E89818']
+
     sns.histplot(data_dict_100['max_list'],
                  ax=ax1,
                  color=colors[0],
@@ -184,7 +210,6 @@ def plot_four_simple_examples(figure_path):
                 ax=ax1_twin,
                 color=colors[0],
                 linestyle='--')
-    ax1_twin.set_ylim(0, .4)
 
     sns.histplot(data_dict_100['min_list'],
                  ax=ax1,
@@ -196,7 +221,7 @@ def plot_four_simple_examples(figure_path):
                 linestyle='--',
                 alpha=1)
     ax1_twin.set_ylim(0, .4)
-
+    ax1.set_ylim(0, 14)
     legend_elements1 = [
         Patch(facecolor=colors[0], edgecolor=(0, 0, 0, 1),
               label=r'Maximal Sum'),
@@ -204,7 +229,7 @@ def plot_four_simple_examples(figure_path):
               label=r'Minimal Sum')]
 
     ax1.legend(handles=legend_elements1, loc='upper right', frameon=True,
-               fontsize=12, framealpha=1, facecolor='w',
+               fontsize=11, framealpha=1, facecolor='w',
                edgecolor=(0, 0, 0, 1), ncols=1
                )
     ax1_twin.yaxis.set_label_position("right")
@@ -216,122 +241,190 @@ def plot_four_simple_examples(figure_path):
     #################
     # Figure 1b here#
     #################
-    colors = ['#001c54', (255 / 255, 223 / 255, 0 / 255, 19 / 255), '#8b0000']
     df_buffon = df_buffon.set_index('Throws')
     df_buffon = df_buffon[45:]
-    ax2.plot(df_buffon['Min'], color=colors[0], alpha=0.8)
-    ax2.plot(df_buffon['Max'], color=colors[2], alpha=0.8)
+    ax2.plot(df_buffon['Min'], color=colors[1], alpha=0.8, linestyle='--')
+    ax2.plot(df_buffon['Max'], color=colors[2], alpha=0.8, linestyle='--')
     ax2.set_xlim(0, df_buffon.index[-1] + 500)
     ax2.set_ylim(2.225, 4.5)
     ax2.hlines(math.pi, df_buffon.index[0] + 500, df_buffon.index[-1],
-               color='k', linestyle='--', alpha=.5)
+               color=colors[0], linestyle='-')
     ax2.fill_between(df_buffon.index, df_buffon['Min'], df_buffon['Max'],
-                     color=colors[1])
+                     color=fill_color)
     ax2.set_xlabel('Number of Throws', fontsize=16)
     ax2.set_ylabel(r'Estimate of $\mathrm{\pi}$', fontsize=16)
     ax2.tick_params(axis='both', which='major', labelsize=14,
                     width=1, length=8)
     legend_elements2 = [
-        Line2D([0], [0], color=colors[0], lw=2, linestyle='-',
-               label=r'Upper Limit', alpha=0.7),
-        Line2D([0], [0], color=colors[2], lw=2, linestyle='-',
-               label=r'Lower Limit', alpha=0.7),
-        Line2D([0], [0], color='k', lw=2, linestyle='--',
-               label=r'$\mathrm{\pi}$', alpha=0.7),
-        Patch(facecolor=colors[1], edgecolor=(0, 0, 0, 1),
-              label=r'Range')
+        Line2D([0], [0], color=colors[2], linestyle='--',
+               label=r'Max', lw=2),
+        Line2D([0], [0], color=colors[1], linestyle='--',
+               label=r'Min', lw=2),
+        Line2D([0], [0], color=colors[0], linestyle='-',
+               label=r'$\mathrm{\pi}$', lw=2),
+        Patch(facecolor=fill_color, edgecolor=(0, 0, 0, 1),
+              label=r'Variance')
     ]
     ax2.legend(handles=legend_elements2, loc='upper right', frameon=True,
-               fontsize=label_fontsize - 4, framealpha=1, facecolor='w',
+               fontsize=11, framealpha=1, facecolor='w',
                edgecolor=(0, 0, 0, 1), ncols=2
                )
 
     #################
     # Figure 1c here#
     #################
-    ax3.plot(min_series.index, min_series,
-             color=colors[1], linestyle='-',
-             alpha=0.8)
-    ax3.plot(max_series.index, max_series,
-             color=colors[1], linestyle='-',
-             alpha=0.8)
-    ax3.plot(med_series.index, med_series,
-             color=colors[0], linestyle='--',
-             alpha=0.8)
-    ax3.set_ylabel(r'Effect Size ($\rm{\hat{\beta}}$)',
-                   fontsize=16)
-    ax3.set_xlabel(r'Specification (n)',
-                   fontsize=16)
-    legend_elements3 = [Line2D([0], [0],
-                               color=colors[0],
-                               lw=1,
-                               linestyle='--',
-                               label=r'Median',
-                               alpha=0.7),
-                        Line2D([0], [0],
-                               color=colors[1],
-                               lw=1, linestyle='-',
-                               label=r'Min\Max',
-                               alpha=0.7), ]
-    ax3.legend(handles=legend_elements3,
-               loc='upper left', frameon=True,
-               fontsize=label_fontsize - 4,
-               framealpha=1, facecolor='w',
-               edgecolor=(0, 0, 0, 1))
-    ax3.hlines(y=0,
-               xmin=ax3.get_xlim()[0],
-               xmax=ax3.get_xlim()[1],
-               color='k',
-               linewidth=1,
-               linestyle='--',
-               alpha=0.5)
-    ax3.fill_between(min_series.index,
-                     min_series,
-                     y2=max_series,
-                     color=colors[1],
-                     alpha=0.075)
 
-    inset_ax = inset_axes(ax3,
-                          width="37%",
-                          height="85%",
-                          loc='lower right',
-                          bbox_to_anchor=(-0.005, 0.0975, 1, 0.295),
-                          bbox_transform=ax3.transAxes)
-    inset_ax.set_xlabel(r'Effect Size ($\rm{\hat{\beta}}$)',
-                        fontsize=label_fontsize - 5, labelpad=-3)
-    inset_ax.set_ylabel('Frequency', fontsize=label_fontsize - 5)
-    inset_ax.hist(all_in_one_list, bins=50, color=colors[0],
-                  alpha=0.6, edgecolor='k')
-    letter_fontsize = 24
-    label_fontsize = 18
-    mpl.rcParams['font.family'] = 'Helvetica'
-    colors = ['#001c54', (255 / 255, 223 / 255, 0 / 255, 10 / 255), '#8b0000']
+    collisions[0].plot(color=colors[1], linestyle='--', ax=ax3)
+    collisions[1].plot(color=colors[0], linestyle='-', ax=ax3)
+    collisions[2].plot(color=colors[2], linestyle='--', ax=ax3)
+
+    ax3.fill_between(collisions.index, collisions[0], collisions[2],
+                     color=fill_color)
+
+    legend_elements2 = [
+        Line2D([0], [0], color=colors[2], lw=2, linestyle='--',
+               label=r'Max'),
+        Line2D([0], [0], color=colors[1], lw=2, linestyle='--',
+               label=r'Min'),
+        Line2D([0], [0], color=colors[0], lw=2, linestyle='-',
+               label=r'Median'),
+        Patch(facecolor=fill_color, edgecolor=(0, 0, 0, 1),
+              label=r'Variance')]
+    ax3.legend(handles=legend_elements2, loc='lower right', frameon=True,
+               fontsize=11, framealpha=1, facecolor='w',
+               edgecolor=(0, 0, 0, 1), ncols=2
+               )
+    # ax3.hlines(116, collisions.index[-1]/3, collisions.index[-1],
+    #           color='k', linestyle='--', alpha=.75)
+    ax3.set_xlim(0, 1000000)
+    #    ax3.annotate('Expectation',
+    #                 xy=(125000, 118), xytext=(125000, 118),
+    #                 fontsize=13, ha='center', va='bottom',
+    #                )
+    ax3.set_ylabel('Number of 32-bit collisions', fontsize=16)
+    ax3.set_xlabel('Sample size', fontsize=16)
+
+    ax3_inset = ax3.inset_axes([0.015, 0.55, 0.35, 0.35], transform=ax3.transAxes)
+    nbins = 25
+    sns.histplot(final_collisions,
+                 ax=ax3_inset,
+                 color=colors[0],
+                 bins=nbins,
+                 alpha=0.9
+                 )
+    ax3_twin = ax3_inset.twinx()
+    sns.kdeplot(final_collisions,
+                ax=ax3_twin,
+                color=colors[1],
+                linestyle='--',
+                linewidth=2
+                )
+    #    ax3_inset.set_ylim(0, 1500)
+    #    ax3_twin.set_ylim(0, 0.045)
+    ax3_inset.annotate('$\mu$ = ' + str(np.round(np.mean(final_collisions), 1)) + ', $\sigma$ = ' +
+                       str(np.round(np.std(final_collisions), 1)),
+                       xy=(0.5, 1), xytext=(0.5, 1.1),
+                       xycoords='axes fraction',
+                       fontsize=11, ha='center', va='bottom',
+                       bbox=dict(boxstyle='round,pad=0.35', fc='white'),
+                       arrowprops=dict(arrowstyle='-[, widthB=5.0, lengthB=1',
+                                       lw=1.0)
+                       )
+    #    ax3_twin.tick_params(width=1, length=8, axis='both', which='major', labelsize=14)
+    ax3.set_xlabel('Number of Draws', fontsize=16)
+    ax3.set_ylabel('Count of Collisions', fontsize=16)
+    #    ax3_twin.set_ylabel('Density of collisions', fontsize=16)
+    ax3.set_axisbelow(True)
+    ax3_twin.set_ylabel('')
+    ax3_inset.set_ylabel('')
+    ax3_twin.set_xlabel('')
+    ax3_inset.set_xlabel('')
+    ax3_inset.set_yticks([])
+    ax3_twin.set_yticks([])
+
+    #    ax3.plot(min_series.index, min_series,
+    #             color=colors[1], linestyle='-',
+    #             alpha=0.8)
+    #    ax3.plot(max_series.index, max_series,
+    #             color=colors[1], linestyle='-',
+    #             alpha=0.8)
+    #    ax3.plot(med_series.index, med_series,
+    #             color=colors[0], linestyle='--',
+    #             alpha=0.8)
+    #    ax3.set_ylabel(r'Effect Size ($\rm{\hat{\beta}}$)',
+    #                   fontsize=16)
+    #    ax3.set_xlabel(r'Specification (n)',
+    #                   fontsize=16)
+    #    legend_elements3 = [Line2D([0], [0],
+    #                               color=colors[0],
+    #                               lw=1,
+    #                               linestyle='--',
+    #                               label=r'Median',
+    #                               alpha=0.7),
+    #                        Line2D([0], [0],
+    #                               color=colors[1],
+    #                               lw=1, linestyle='-',
+    #                               label=r'Min\Max',
+    #                               alpha=0.7), ]
+    #    ax3.legend(handles=legend_elements3,
+    #               loc='upper left', frameon=True,
+    #               fontsize=label_fontsize - 4,
+    #               framealpha=1, facecolor='w',
+    #               edgecolor=(0, 0, 0, 1))
+    #    ax3.hlines(y=0,
+    #               xmin=ax3.get_xlim()[0],
+    #               xmax=ax3.get_xlim()[1],
+    #               color='k',
+    #               linewidth=1,
+    #               linestyle='--',
+    #               alpha=0.5)
+    #    ax3.fill_between(min_series.index,
+    #                     min_series,
+    #                     y2=max_series,
+    #                     color=colors[1],
+    #                     alpha=0.075)
+    #
+    #    inset_ax = inset_axes(ax3,
+    #                          width="37%",
+    #                          height="85%",
+    #                          loc='lower right',
+    #                          bbox_to_anchor=(-0.005, 0.0975, 1, 0.295),
+    #                          bbox_transform=ax3.transAxes)
+    #    inset_ax.set_xlabel(r'Effect Size ($\rm{\hat{\beta}}$)',
+    #                        fontsize=label_fontsize - 5, labelpad=-3)
+    #    inset_ax.set_ylabel('Frequency', fontsize=label_fontsize - 5)
+    #    inset_ax.hist(all_in_one_list, bins=50, color=colors[0],
+    #                  alpha=0.6, edgecolor='k')
+    #    letter_fontsize = 24
+    #    label_fontsize = 18
+    #    mpl.rcParams['font.family'] = 'Helvetica'
 
     #################
     # Figure 1d here#
     #################
     btc_data['Close'].plot(ax=ax4, color=colors[0])
-    rw_min.plot(ax=ax4, color=colors[1], alpha=0.8)
-    rw_max.plot(ax=ax4, color=colors[1], alpha=0.8)
-    rw_med.plot(ax=ax4, color='k', linestyle='--', alpha=.5)
-    legend_elements2 = [
-        Line2D([0], [0], color=colors[0], lw=2, linestyle='-',
-               label=r'In-sample', alpha=0.7),
-        Line2D([0], [0], color=colors[1], lw=2, linestyle='-',
-               label=r'Min/Max', alpha=0.8),
-        Line2D([0], [0], color='k', lw=2, linestyle='--',
-               label=r'Median', alpha=0.7),
-        Patch(facecolor=colors[1], edgecolor=(0, 0, 0, 1),
-              label=r'Range')]
-    ax4.legend(handles=legend_elements2, loc='upper left', frameon=True,
-               fontsize=label_fontsize - 4, framealpha=1, facecolor='w',
+    rw_min.plot(ax=ax4, color=colors[1], alpha=0.8, linestyle='--')
+    rw_max.plot(ax=ax4, color=colors[2], alpha=0.8, linestyle='--')
+    rw_med.plot(ax=ax4, color=colors[0], linestyle='-')
+    legend_elements4 = [
+        Line2D([0], [0], color=colors[2], linestyle='--',
+               label=r'Max', lw=2),
+        Line2D([0], [0], color=colors[1], linestyle='--',
+               label=r'Min', lw=2),
+        Line2D([0], [0], color=colors[0], linestyle='-',
+               label=r'Median', lw=2),
+        Patch(facecolor=fill_color, edgecolor=(0, 0, 0, 1),
+              label=r'Variance')
+    ]
+    ax4.legend(handles=legend_elements4, loc='upper right', frameon=True,
+               fontsize=11, framealpha=1, facecolor='w',
                edgecolor=(0, 0, 0, 1), ncols=2
                )
     ylabels = ['${:,.0f}'.format(x) + 'k' for x in ax4.get_yticks()]
     ax4.set_ylabel(r'Price', fontsize=16)
     ax4.set_yticklabels(ylabels)
     ax4.set_xlabel('')
-    ax4.fill_between(rw_index, rw_min, rw_max, color=colors[1])
+    ax4.fill_between(rw_index, rw_min, rw_max, color=fill_color)
 
     ax1.grid(which="both", linestyle='--', alpha=0.3)
     ax2.grid(which="both", linestyle='--', alpha=0.3)
@@ -357,6 +450,13 @@ def plot_four_simple_examples(figure_path):
     ax2.tick_params(axis='both', which='major', labelsize=14)
     ax3.tick_params(axis='both', which='major', labelsize=14)
     ax4.tick_params(axis='both', which='major', labelsize=14)
+
+    for ax in [ax3_twin, ax3_inset]:
+        sns.despine(ax=ax,
+                    left=True,
+                    right=True,
+                    top=True,
+                    bottom=False)
 
     plt.tight_layout()
     filename = 'four_simple_examples'
@@ -615,7 +715,7 @@ def combine_buffon_and_rw(figure_path):
 
 
 
-def ffc_plotter(df, figure_path):
+def plot_ffc(df, figure_path):
     def jointplotter(df, outcome, model, counter):
         df1 = df[(df['outcome']==outcome) &
                  (df['account']==model)][0:10000]
@@ -1117,4 +1217,285 @@ def plot_rgms(figure_path):
     plt.setp(ax3.collections, alpha=.85)
     plt.tight_layout()
     plt.savefig(os.path.join(figure_path, 'rgm_seeds.pdf'),
+                bbox_inches='tight')
+
+def plot_topic_jointplot():
+    import os
+    import math
+    import numpy as np
+    import pandas as pd
+    import seaborn as sns
+    import matplotlib as mpl
+    import matplotlib.pyplot as plt
+    import matplotlib.gridspec as gridspec
+    from matplotlib.lines import Line2D
+    from matplotlib.patches import Patch
+    from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+    mpl.rcParams['font.family'] = 'Helvetica'
+
+    # nature = pd.read_csv(os.path.join(os.getcwd(),
+    #                     '..',
+    #                     'data',
+    ##                     'bibliometric',
+    #                     'meta_data',
+    #                     'metadata_nature.csv')
+    #                    )
+
+    science = pd.read_csv(os.path.join(os.getcwd(),
+                                       '..',
+                                       'data',
+                                       'bibliometric',
+                                       'meta_data',
+                                       'metadata_science.csv')
+                          )
+
+    # pnas = pd.read_csv(os.path.join(os.getcwd(),
+    #                     '..',
+    #                     'data',
+    #                     'bibliometric',
+    #                     'meta_data',
+    #                     'metadata_pnas.csv')
+    #                    )
+
+    nejm = pd.read_csv(os.path.join(os.getcwd(),
+                                    '..',
+                                    'data',
+                                    'bibliometric',
+                                    'meta_data',
+                                    'metadata_nejm.csv')
+                       )
+
+    class SeabornFig2Grid():
+        def __init__(self, seaborngrid, fig, subplot_spec):
+            self.fig = fig
+            self.sg = seaborngrid
+            self.subplot = subplot_spec
+            if isinstance(self.sg, sns.axisgrid.FacetGrid) or \
+                    isinstance(self.sg, sns.axisgrid.PairGrid):
+                self._movegrid()
+            elif isinstance(self.sg, sns.axisgrid.JointGrid):
+                self._movejointgrid()
+            self._finalize()
+
+        def _movegrid(self):
+            """ Move PairGrid or Facetgrid """
+            self._resize()
+            n = self.sg.axes.shape[0]
+            m = self.sg.axes.shape[1]
+            self.subgrid = gridspec.GridSpecFromSubplotSpec(n, m, subplot_spec=self.subplot)
+            for i in range(n):
+                for j in range(m):
+                    self._moveaxes(self.sg.axes[i, j], self.subgrid[i, j])
+
+        def _movejointgrid(self):
+            """ Move Jointgrid """
+            h = self.sg.ax_joint.get_position().height
+            h2 = self.sg.ax_marg_x.get_position().height
+            r = int(np.round(h / h2))
+            self._resize()
+            self.subgrid = gridspec.GridSpecFromSubplotSpec(r + 1, r + 1, subplot_spec=self.subplot)
+
+            self._moveaxes(self.sg.ax_joint, self.subgrid[1:, :-1])
+            self._moveaxes(self.sg.ax_marg_x, self.subgrid[0, :-1])
+            self._moveaxes(self.sg.ax_marg_y, self.subgrid[1:, -1])
+
+        def _moveaxes(self, ax, gs):
+            # https://stackoverflow.com/a/46906599/4124317
+            ax.remove()
+            ax.figure = self.fig
+            self.fig.axes.append(ax)
+            self.fig.add_axes(ax)
+            ax._subplotspec = gs
+            ax.set_position(gs.get_position(self.fig))
+            ax.set_subplotspec(gs)
+
+        def _finalize(self):
+            plt.close(self.sg.fig)
+            self.fig.canvas.mpl_connect("resize_event", self._resize)
+            self.fig.canvas.draw()
+
+        def _resize(self, evt=None):
+            self.sg.fig.set_size_inches(self.fig.get_size_inches())
+
+    def jointplotter(df, counter):
+        title_list = ['A.', 'B.', 'C.', 'D.', 'E.', 'F.']
+        title = title_list[counter]
+        g = sns.jointplot(x=df['topics_count'],
+                          y=df['outliers_count'],
+                          kind='hex',
+                          marginal_kws=dict(bins=25,
+                                            color='w'))
+        g.plot_joint(sns.kdeplot, color="r", levels=6)
+        g.ax_marg_x.annotate(title, xy=(-0.1, .45), xycoords='axes fraction',
+                             ha='left', va='center', fontsize=24)
+        return g
+
+    fig = plt.figure(figsize=(12, 6))
+    gs = gridspec.GridSpec(1, 2)
+    figurez = []
+
+    # figurez.append(jointplotter(nature, 0))
+    figurez.append(jointplotter(science, 0))
+    # figurez.append(jointplotter(pnas, 2))
+    figurez.append(jointplotter(nejm, 1))
+    # tmp = SeabornFig2Grid(figurez[0], fig, gs[0])
+    tmp = SeabornFig2Grid(figurez[0], fig, gs[0])
+    # tmp = SeabornFig2Grid(figurez[2], fig, gs[2])
+    tmp = SeabornFig2Grid(figurez[1], fig, gs[1])
+
+    figurez[0] = figurez[0].ax_joint.annotate('Science', xy=(0.9, 0.05),
+                                              xycoords='axes fraction',
+                                              ha='left', va='center', fontsize=14)
+    figurez[1] = figurez[1].ax_joint.annotate('NEJM', xy=(0.878, 0.05),
+                                              xycoords='axes fraction',
+                                              ha='left', va='center', fontsize=14)
+    # figurez[2] = figurez[2].ax_joint.annotate('Material Hardship', xy=(0.56, 0.05),
+    #                                          xycoords='axes fraction',
+    #                                          ha='left', va='center', fontsize=14)
+    # figurez[3] = figurez[3].ax_joint.annotate('Eviction', xy=(0.805, 0.05),
+    #                                          xycoords='axes fraction',
+    #                                          ha='left', va='center', fontsize=14)
+    gs.tight_layout(fig)
+    gs.update(hspace=0.1)
+    figure_path = os.path.join(os.getcwd(), '..', 'figures')
+    plt.savefig(os.path.join(figure_path, 'topic_modelling_seeds_jointplot_2.pdf'), bbox_inches='tight')
+    plt.show()
+
+def plot_topics_barplot(figure_path):
+
+    science = pd.read_csv(os.path.join(os.getcwd(),
+                                       '..',
+                                       'data',
+                                       'bibliometric',
+                                       'meta_data',
+                                       'metadata_science.csv')
+                          )
+    ###################################
+    ## This needs to be uncommented  ##
+    ###################################
+    pnas = science
+    # pnas = pd.read_csv(os.path.join(os.getcwd(),
+    #                     '..',
+    #                     'data',
+    #                     'bibliometric',
+    #                     'meta_data',
+    #                     'metadata_pnas.csv')
+    #                    )
+    nejm = pd.read_csv(os.path.join(os.getcwd(),
+                                    '..',
+                                    'data',
+                                    'bibliometric',
+                                    'meta_data',
+                                    'metadata_nejm.csv')
+                       )
+    ###################################
+    ## This needs to be uncommented  ##
+    ###################################
+    nature = nejm
+    # nature = pd.read_csv(os.path.join(os.getcwd(),
+    #                     '..',
+    #                     'data',
+    ##                     'bibliometric',
+    #                     'meta_data',
+    #                     'metadata_nature.csv')
+    #                    )
+    fig, ((ax1, ax2),
+          (ax3, ax4)
+          ) = plt.subplots(2, 2, figsize=(14, 8))
+    colors = ['#001c54', '#E89818']
+    nbins = 25
+    sns.histplot(science['topics_count'],
+                 ax=ax1,
+                 color=colors[0],
+                 bins=nbins)
+    ax1_twin = ax1.twinx()
+    sns.kdeplot(science['topics_count'], ax=ax1_twin, color=colors[1])
+    sns.histplot(nejm['topics_count'],
+                 ax=ax2,
+                 color=colors[0],
+                 bins=nbins)
+    ax2_twin = ax2.twinx()
+    sns.kdeplot(nejm['topics_count'], ax=ax2_twin, color=colors[1])
+    sns.histplot(pnas['topics_count'],
+                 ax=ax3,
+                 color=colors[0],
+                 bins=nbins)
+    ax3_twin = ax3.twinx()
+    sns.kdeplot(pnas['topics_count'], ax=ax3_twin, color=colors[1])
+    sns.histplot(nature['topics_count'],
+                 ax=ax4,
+                 color=colors[0],
+                 bins=nbins)
+    ax4_twin = ax4.twinx()
+    sns.kdeplot(nature['topics_count'], ax=ax4_twin, color=colors[1])
+    ax1.set_title('a.', loc='left', fontsize=23)
+    ax2.set_title('b.', loc='left', fontsize=23)
+    ax3.set_title('c.', loc='left', fontsize=22)
+    ax4.set_title('d.', loc='left', fontsize=22)
+    ax1.set_xlim(0, 400)
+    ax2.set_xlim(0, 160)
+    ax3.set_xlim(0, ax3.get_xlim()[1])
+    ax4.set_xlim(0, ax4.get_xlim()[1])
+    ax1.grid(which="both", linestyle='--', alpha=0.25)
+    ax2.grid(which="both", linestyle='--', alpha=0.25)
+    ax3.grid(which="both", linestyle='--', alpha=0.25)
+    ax4.grid(which="both", linestyle='--', alpha=0.25)
+    ax1.set_axisbelow(True)
+    ax2.set_axisbelow(True)
+    ax3.set_axisbelow(True)
+    ax4.set_axisbelow(True)
+    legend_elements1 = [
+        Patch(facecolor=colors[0], edgecolor=(0, 0, 0, 1),
+              label=r'Histogram'),
+        Line2D([0], [0], color=colors[1], lw=2, linestyle='-',
+               label=r'Kernel Density', alpha=0.7)
+    ]
+    ax1.legend(handles=legend_elements1, loc='upper right', frameon=True,
+               fontsize=12, framealpha=1, facecolor='w',
+               edgecolor=(0, 0, 0, 1), ncols=1, title='Science'
+               )
+    ax2.legend(handles=legend_elements1, loc='upper left', frameon=True,
+               fontsize=12, framealpha=1, facecolor='w',
+               edgecolor=(0, 0, 0, 1), ncols=1, title='New England Journal\n       Of Medicine'
+               )
+    ax3.legend(handles=legend_elements1, loc='upper right', frameon=True,
+               fontsize=12, framealpha=1, facecolor='w',
+               edgecolor=(0, 0, 0, 1), ncols=1, title='PNAS'
+               )
+    ax4.legend(handles=legend_elements1, loc='upper left', frameon=True,
+               fontsize=12, framealpha=1, facecolor='w',
+               edgecolor=(0, 0, 0, 1), ncols=1, title='Nature'
+               )
+
+    print(f"Science mean number of topics: {science['topics_count'].mean()}")
+    print(f"Science min number of topics: {science['topics_count'].min()}")
+    print(f"Science max number of topics: {science['topics_count'].max()}")
+    print(f"NEJM mean number of topics: {nejm['topics_count'].mean()}")
+    print(f"NEJM min number of topics: {nejm['topics_count'].min()}")
+    print(f"NEJM max number of topics: {nejm['topics_count'].max()}")
+    print(f"PNAS mean number of topics: {science['topics_count'].mean()}")
+    print(f"PNAS min number of topics: {science['topics_count'].min()}")
+    print(f"PNAS max number of topics: {science['topics_count'].max()}")
+    print(f"Nature mean number of topics: {nejm['topics_count'].mean()}")
+    print(f"Nature min number of topics: {nejm['topics_count'].min()}")
+    print(f"Nature max number of topics: {nejm['topics_count'].max()}")
+
+    ax3.text(0.5, 0.5, 'PNAS Placeholder', transform=ax3.transAxes,
+             fontsize=40, color='red',
+             #         alpha=0.5,
+             ha='center', va='center', rotation=30)
+    ax4.text(0.5, 0.5, 'Nature Placeholder', transform=ax4.transAxes,
+             fontsize=40, color='red',
+             #         alpha=0.5,
+             ha='center', va='center', rotation=30)
+    for ax in [ax1, ax2, ax3, ax4]:
+        ax.set_ylabel('Count', fontsize=16)
+        ax.set_xlabel('Number of topics', fontsize=16)
+    ax1_twin.set_ylabel('Density', fontsize=16)
+    ax2_twin.set_ylabel('Density', fontsize=16)
+    ax3_twin.set_ylabel('Density', fontsize=16)
+    ax4_twin.set_ylabel('Density', fontsize=16)
+    plt.tight_layout()
+    plt.savefig(os.path.join(figure_path,
+                             'topic_modelling_seeds_histplot.pdf'),
                 bbox_inches='tight')

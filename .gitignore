@@ -158,6 +158,6 @@ data/*
 /talks/ox_ber/figures/
 /talks/ox_ber/figures/
 
-talks\*
+figures/
 
 src/deprecated
