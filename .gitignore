@@ -160,4 +160,4 @@ data/*
 
 talks\*
 
-src\deprecated
+src/deprecated
