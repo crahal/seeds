@@ -157,3 +157,7 @@ data/*
 /src/.Rhistory
 /talks/ox_ber/figures/
 /talks/ox_ber/figures/
+
+talks\*
+
+src\deprecated

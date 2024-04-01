@@ -220,7 +220,7 @@ if __name__ == "__main__":
     df = preprocess_data(df, sys.argv[2])
     seed_limit = 1000
     n_neighbors = 10
-    seed_list = get_seed_list()[:seed_limit]
+    seed_list = get_seed_list()[666:seed_limit]
     embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
     target_dir = os.path.join(os.getcwd(),
                               '..',
@@ -229,8 +229,8 @@ if __name__ == "__main__":
                               'meta_data'
                               )
     meta_path = Path(target_dir) / f"metadata_{sys.argv[2]}.csv"
-    if os.path.exists(meta_path):
-        os.remove(meta_path)
+#    if os.path.exists(meta_path):
+#        os.remove(meta_path)
     docs = df["cleaned_full_text"].tolist()
     embeddings = embedding_model.encode(docs, show_progress_bar=True)
     logger.info(f'Working on {sys.argv[2]} dataset of cleaned abstracts')
