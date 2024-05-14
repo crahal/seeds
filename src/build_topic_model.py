@@ -5,7 +5,7 @@ from timeout_decorator import timeout
 import re
 from pathlib import Path
 from typing import List, Union
-from google.cloud import bigquery
+#from google.cloud import bigquery
 import pandas as pd
 import traceback
 import numpy as np
@@ -17,6 +17,7 @@ from sentence_transformers import SentenceTransformer
 from bertopic.vectorizers import ClassTfidfTransformer
 from bertopic import BERTopic
 from bertopic.representation import KeyBERTInspired
+
 
 try:
     from cuml.cluster import HDBSCAN
@@ -50,10 +51,16 @@ def clean_free_text(s):
 def preprocess_data(df, journal):
     logger.info(f'Length of raw {journal} dataframe: {len(df)}')
     df = df[df['abstract'].notnull() &
-            (df['abstract'].str.len() >= 500)].sort_values(by='date_normal',
+            (df['abstract'].str.len() >= 250)].sort_values(by='date_normal',
                                                            ascending=False)
     df["cleaned_full_text"] = df["abstract"].apply(clean_free_text)
     logger.info(f'Length of processed {journal} dataframe: {len(df)}')
+
+    if len(df) > 100000:
+        df = df.head(100000)
+    else:
+        df = df
+
     df.to_csv(os.path.join(os.getcwd(),
                            '..',
                            'data',
@@ -61,6 +68,7 @@ def preprocess_data(df, journal):
                            'processed',
                            journal+'processed.csv')
               )
+    logger.info(f'Beggining to build model with: {len(df)} rows of data.')
     return df
 
 
@@ -176,7 +184,7 @@ def get_abstracts():
     nejm.to_csv(os.path.join(data_out, file_name), mode='w', header=False)
 
 
-@timeout(500)
+@timeout(5000)
 def run_bert_with_timeout(docs, embedding_model, embeddings, state, name, output_path):
     run_bert(docs, embedding_model, embeddings, state, name, output_path)
 
@@ -213,14 +221,14 @@ if __name__ == "__main__":
     else:
         print(f'Begining to work on {sys.argv[2]}!')
 
+    seed_limit = 1000
+    n_neighbors = 10
+    seed_list = get_seed_list()[0:seed_limit]
     article_headers = ['id', 'doi', 'journal.issn',
                        'date_normal', 'abstract']
     data_raw = os.path.join(os.getcwd(), '..', 'data', 'bibliometric', 'raw')
     df = load_file(data_raw, article_headers, sys.argv[2] + '_articles.csv')
     df = preprocess_data(df, sys.argv[2])
-    seed_limit = 1000
-    n_neighbors = 10
-    seed_list = get_seed_list()[666:seed_limit]
     embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
     target_dir = os.path.join(os.getcwd(),
                               '..',

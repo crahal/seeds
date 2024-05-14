@@ -30,7 +30,6 @@ def main():
         min_val = np.inf
         max_val = -np.inf
         seed_list = get_seed_list()
-
         min_list = []
         max_list = []
 

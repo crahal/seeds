@@ -46,7 +46,7 @@ def make_prediction(x_train, x_test, y_train, y_test):
 
 
 if __name__ == "__main__":
-    seed_limit = 100000
+    seed_limit = 10000
     housing_path = os.path.join(os.getcwd(), '..', 'data', 'housing')
     df = pd.read_csv(os.path.join(housing_path, 'raw', 'housing.csv'),
                      converters={'ocean_proximity':converter})

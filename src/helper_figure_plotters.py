@@ -146,6 +146,10 @@ def plot_four_simple_examples(figure_path):
     with open(file_path_100, 'r') as file:
         data_dict_100 = json.load(file)
 
+    print('Loading in the rnom samples for 100 draws, 1000000')
+    print(f"The minimum mean value is: {data_dict_100['min_val']}")
+    print(f"The maximum mean value is: {data_dict_100['max_val']}")
+
     # Load data for 1b here
     df_buffon = pd.read_csv(os.path.join(os.getcwd(),
                                          '..', 'data',
@@ -537,7 +541,7 @@ def plot_two_inference(figure_path):
     colors = ['#001c54', '#E89818']
     letter_fontsize = 24
     label_fontsize = 18
-    mpl.rcParams['font.family'] = 'Arial'
+    mpl.rcParams['font.family'] = 'Helvetica'
     ax1.plot(min_series.index, min_series, color=colors[1], linestyle='-', alpha=0.8)
     ax1.plot(max_series.index, max_series, color=colors[1], linestyle='-', alpha=0.8)
     ax1.plot(med_series.index, med_series, color=colors[0], linestyle='--', alpha=0.8)
@@ -718,8 +722,8 @@ def combine_buffon_and_rw(figure_path):
 def plot_ffc(df, figure_path):
     def jointplotter(df, outcome, model, counter):
         df1 = df[(df['outcome']==outcome) &
-                 (df['account']==model)][0:10000]
-        title_list = ['A.', 'B.', 'C.', 'D.', 'E.', 'F.']
+                 (df['account']==model)]#[0:10000]
+        title_list = ['a.', 'b.', 'c.', 'd.', 'e.', 'f.']
         title = title_list[counter]
         print(str(outcome) + '. Min beta :' + str(np.round(df1['beta'].min(), 4)) +
               '. Max beta: ' + str(np.round(df1['beta'].max(), 4)) +
@@ -733,18 +737,18 @@ def plot_ffc(df, figure_path):
                                             color='w'))
         g.plot_joint(sns.kdeplot, color="r", levels=6)
         g.ax_marg_x.annotate(title, xy=(-0.1, .45), xycoords='axes fraction',
-                    ha='left', va='center', fontsize=24)
+                    ha='left', va='center', fontsize=26)
         if counter in [0, 3]:
-            g.ax_joint.set_ylabel(r'Pseudo R$^2$', fontsize=16)
+            g.ax_joint.set_ylabel(r'Pseudo R$^2$', fontsize=14)
         else:
             g.ax_joint.set_ylabel('')
         if counter in [3,4,5]:
-            g.ax_joint.set_xlabel('Lagged Coefficient', fontsize=16)
+            g.ax_joint.set_xlabel('Lagged Coefficient', fontsize=14)
         else:
             g.ax_joint.set_xlabel('')
         return g
 
-    fig = plt.figure(figsize=(16, 10))
+    fig = plt.figure(figsize=(14, 9))
     gs = gridspec.GridSpec(2, 3)
     figurez = []
     outcomes = ['gpa', 'grit', 'materialHardship',
@@ -775,9 +779,26 @@ def plot_ffc(df, figure_path):
                                               xycoords='axes fraction',
                                               ha='left', va='center', fontsize=14)
     gs.tight_layout(fig)
-    gs.update(hspace=0.1)
-    plt.savefig(os.path.join(figure_path, 'ffc_seeds.pdf'), bbox_inches='tight')
-    plt.show()
+    gs.update(hspace=0.125, wspace=0.125)
+#    plt.subplots_adjust(top=0.9, right=0.9)
+
+
+    # Interestingly, this is broken with gs.
+    plt.savefig(os.path.join(figure_path, 'ffc_seeds.pdf')
+    , bbox_inches='tight'
+    )
+    plt.savefig(os.path.join(figure_path, 'ffc_seeds.svg')
+    , bbox_inches='tight'
+    )
+    plt.savefig(os.path.join(figure_path, 'ffc_seeds.png')
+    , bbox_inches='tight',# dpi=900,
+    )
+    plt.savefig(os.path.join(figure_path, 'ffc_seeds.tiff')
+    , bbox_inches='tight',
+    #dpi = 600,
+    format = "tiff", pil_kwargs = {"compression": "tiff_lzw"}
+                )
+    #    plt.show()
 
 
 class SeabornFig2Grid():
@@ -855,8 +876,8 @@ def covid_plotter(list1, list2, list3, list4, figure_path):
     nbins=18
     letter_fontsize = 24
     label_fontsize = 18
-    mpl.rcParams['font.family'] = 'Arial'
-    csfont = {'fontname': 'Arial'}
+    mpl.rcParams['font.family'] = 'Helvetica'
+    csfont = {'fontname': 'Helvetica'}
     sns.distplot(list1, hist_kws={'facecolor': colors[0],
                                   'edgecolor': 'k',
                                   'alpha': 0.7},
@@ -953,8 +974,8 @@ def mca_plotter(figure_path):
     nbins = 18
     letter_fontsize = 24
     label_fontsize = 18
-    mpl.rcParams['font.family'] = 'Arial'
-    csfont = {'fontname': 'Arial'}
+    mpl.rcParams['font.family'] = 'Helvetica'
+    csfont = {'fontname': 'Helvetica'}
     ax.plot(min_series.index, min_series, color=colors[1], linestyle='-', alpha=0.8)
     ax.plot(max_series.index, max_series, color=colors[1], linestyle='-', alpha=0.8)
     ax.plot(med_series.index, med_series, color=colors[0], linestyle='--', alpha=0.8)
@@ -1005,7 +1026,7 @@ def buffons_plotter(figure_path):
     print('Buffons last row: ', df.iloc[-1])
     letter_fontsize = 24
     label_fontsize = 18
-    mpl.rcParams['font.family'] = 'Arial'
+    mpl.rcParams['font.family'] = 'Helvetica'
     fig, ax = plt.subplots(1, 1, figsize=(14, 4.5))
     df = df.set_index('Throws')
     df = df[45:]
@@ -1071,8 +1092,8 @@ def plot_three_predictions(first_wave_10k_stratified_list, figure_path):
     nbins = 18
     letter_fontsize = 24
     label_fontsize = 18
-    mpl.rcParams['font.family'] = 'Arial'
-    csfont = {'fontname': 'Arial'}
+    mpl.rcParams['font.family'] = 'Helvetica'
+    csfont = {'fontname': 'Helvetica'}
     sns.histplot(first_wave_10k_stratified_list, edgecolor='k',
                  color = colors[0], alpha=0.7, stat='density',
                  ax=ax1, bins=nbins)
@@ -1194,8 +1215,8 @@ def plot_rgms(figure_path):
     nbins = 15
     letter_fontsize = 24
     label_fontsize = 18
-    mpl.rcParams['font.family'] = 'Arial'
-    csfont = {'fontname': 'Arial'}
+    mpl.rcParams['font.family'] = 'Helvetica'
+    csfont = {'fontname': 'Helvetica'}
     colors = ['#001c54', '#E89818']
     sns.swarmplot(y=df[0], ax=ax1,  color=colors[0])
     sns.swarmplot(y=df[1], ax=ax3, color=colors[1], alpha=0.825)
