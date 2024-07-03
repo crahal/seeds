@@ -1520,3 +1520,104 @@ def plot_topics_barplot(figure_path):
     plt.savefig(os.path.join(figure_path,
                              'topic_modelling_seeds_histplot.pdf'),
                 bbox_inches='tight')
+
+def load_scientometrics():
+    df_rng = pd.read_csv('../data/openalex_returns/openalex_rn_papers.csv')
+    df_qrng = pd.read_csv('../data/openalex_returns/openalex_rn_and_quantum_papers.csv')
+    df_hrng = pd.read_csv('../data/openalex_returns/openalex_rn_and_hardware_papers.csv')
+    df_prng = pd.read_csv('../data/openalex_returns/openalex_rn_and_pseudo_papers.csv')
+    df_yr = pd.read_csv('../data/openalex_returns/openalex_year_counts.csv')
+    df_yr_dom = pd.read_csv('../data/openalex_returns/openalex_domain_year_counts.csv')
+    return df_rng, df_hrng, df_qrng, df_prng, df_yr, df_yr_dom
+
+
+def desc_print_scientometrics(df_rng, df_hrng, df_qrng, df_prng):
+    def desc_print(df, term):
+        print(f'We have {len(df)} papers for {term}).')
+
+        j_count = df['journal'].value_counts().reset_index()
+        j_count_j = j_count['journal'][0]
+        j_count_val = j_count['count'][0]
+        print(f'Modal journal: {j_count_j} ({j_count_val} papers)')
+
+        sub_count = df['subfield'].value_counts().reset_index()
+        sub_count_sub = sub_count['subfield'][0]
+        sub_count_val = sub_count['count'][0]
+        print(f'Modal subfield: {sub_count_sub} ({sub_count_val} papers)')
+
+        field_count = df['field'].value_counts().reset_index()
+        field_count_field = field_count['field'][0]
+        field_count_val = field_count['count'][0]
+        print(f'Modal field: {field_count_field} ({field_count_val} papers)')
+
+        domain_count = df['domain'].value_counts().reset_index()
+        domain_count_domain = domain_count['domain'][0]
+        domain_count_val = domain_count['count'][0]
+        print(f'Modal domain: {domain_count_domain} ({domain_count_val} papers)')
+
+    desc_print(df_rng, '"random number"')
+    print('')
+    desc_print(df_hrng, '"random number" and "hardware"')
+    print('')
+    desc_print(df_qrng, '"random number" and "quantum"')
+    print('')
+    desc_print(df_prng, '"random number" and "pseudo"')
+    print('')
+
+def make_table(df_rng, df_hrng, df_qrng, df_prng, column):
+    df_rng_val = df_rng[column].value_counts()
+    df_hrng_val = df_hrng[column].value_counts()
+    df_qrng_val = df_qrng[column].value_counts()
+    df_prng_val = df_prng[column].value_counts()
+    df_merged = pd.merge(df_rng_val, df_hrng_val, left_index=True, right_index=True, how='left')
+    df_merged = df_merged.rename({'count_x': '"Random Numbers"', 'count_y': '"Random Numbers" and "Hardware"'}, axis=1)
+    df_merged = pd.merge(df_merged, df_qrng_val, left_index=True, right_index=True, how='left')
+    df_merged = df_merged.rename({'count': '"Random Numbers" and "Quantum"'}, axis=1)
+    df_merged = pd.merge(df_merged, df_prng_val, left_index=True, right_index=True, how='left')
+    df_merged = df_merged.rename({'count': '"Random Numbers" and "Pseudo"'}, axis=1)
+    return df_merged
+
+
+def make_scientometric_ts(df_rng, df_hrng, df_qrng, df_prng, df_yr, domain_df):
+    df_yr = df_yr.rename({'count': 'total_count'}, axis=1)
+    df_yr_rng = pd.DataFrame(df_rng['publication_year'].value_counts())
+    df_yr_rng = df_yr_rng.reset_index()
+    df_yr_rng = df_yr_rng.rename({'publication_year': 'year', 'count': 'RNG_count'}, axis=1)
+
+    df_yr_qrng = pd.DataFrame(df_qrng['publication_year'].value_counts())
+    df_yr_qrng = df_yr_qrng.reset_index()
+    df_yr_qrng = df_yr_qrng.rename({'publication_year': 'year', 'count': 'QRNG_count'}, axis=1)
+
+    df_yr_hrng = pd.DataFrame(df_hrng['publication_year'].value_counts())
+    df_yr_hrng = df_yr_hrng.reset_index()
+    df_yr_hrng = df_yr_hrng.rename({'publication_year': 'year', 'count': 'HRNG_count'}, axis=1)
+
+    df_yr_prng = pd.DataFrame(df_prng['publication_year'].value_counts())
+    df_yr_prng = df_yr_prng.reset_index()
+    df_yr_prng = df_yr_prng.rename({'publication_year': 'year', 'count': 'PRNG_count'}, axis=1)
+
+    df_yr = pd.merge(df_yr, df_yr_rng, left_on='year', right_on='year', how='left')
+    df_yr = pd.merge(df_yr, df_yr_hrng, left_on='year', right_on='year', how='left')
+    df_yr = pd.merge(df_yr, df_yr_qrng, left_on='year', right_on='year', how='left')
+    df_yr = pd.merge(df_yr, df_yr_prng, left_on='year', right_on='year', how='left')
+    for rng_type in ['RNG_count', 'HRNG_count', 'QRNG_count', 'PRNG_count']:
+        df_yr[rng_type] = df_yr[rng_type] / df_yr['total_count'] * 100
+
+    import matplotlib.pyplot as plt
+    from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+    fig, (ax1) = plt.subplots(1, 1, figsize=(14, 7))
+    df_yr[(df_yr['year'] > 1960) & (df_yr['year'] <= 2020)].set_index('year')[['RNG_count']].plot(ax=ax1)
+
+    ax_inset1 = inset_axes(ax1, width="30%", height="30%", loc='upper left',
+                           bbox_to_anchor=(0.05, 0, 1, 1), bbox_transform=ax1.transAxes, borderpad=2)
+    df_yr[(df_yr['year'] > 1960) & (df_yr['year'] <= 2020)].set_index('year')[['HRNG_count',
+                                                                               'QRNG_count',
+                                                                               'PRNG_count']].plot(ax=ax_inset1,
+                                                                                                   kind='area')
+
+    ax_inset2 = inset_axes(ax1, width="30%", height="30%", loc='lower right',
+                           bbox_to_anchor=(0.0, 0, 1, 1), bbox_transform=ax1.transAxes, borderpad=2)
+
+    domain_df.reindex(index=domain_df.index[::-1]).plot(kind='barh', ax=ax_inset2, legend=False)
+    plt.show()
+    return df_yr
