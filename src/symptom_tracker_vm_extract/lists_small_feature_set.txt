@@ -1,7 +1,0 @@
-y
-age
-female
-asmosia
-cough
-fatigue
-skipped_meals

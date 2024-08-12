@@ -159,6 +159,7 @@ data/*
 /talks/ox_ber/figures/
 
 /data/symptomtracker/*.csv
+/data/*
 figures/
 
 src/deprecated
