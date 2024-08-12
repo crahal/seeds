@@ -89,7 +89,10 @@ def run_bert(
         random_state: int,
         journal: str,
         path_metadata_csv: Union[str, Path],
-        nr_topics: Union[None, str, int] = "auto"):
+        n_neighbors,
+        min_topic_size,
+        nr_topics: Union[None, str, int] = "auto"
+        ):
 
     umap_model = UMAP(
         n_neighbors=n_neighbors,
@@ -155,7 +158,7 @@ def dim_query(issn, client, journal):
 def get_abstracts():
     MY_PROJECT_ID = "dimensionsv3"
     client = bigquery.Client(project=MY_PROJECT_ID)
-    data_out = os.path.join('..', 'data', 'bibliometric')
+    data_out = os.path.join('..', 'data', 'bibliometric', 'raw')
 
 
     file_name = 'popstudies_articles.zip'
@@ -184,8 +187,8 @@ def get_abstracts():
     nejm.to_csv(os.path.join(data_out, file_name), mode='w', header=False, compression='zip')
 
 @timeout(5000)
-def run_bert_with_timeout(docs, embedding_model, embeddings, state, name, output_path):
-    run_bert(docs, embedding_model, embeddings, state, name, output_path)
+def run_bert_with_timeout(docs, embedding_model, embeddings, state, name, output_path, n_neighbours, min_topic_size):
+    run_bert(docs, embedding_model, embeddings, state, name, output_path, n_neighbours, min_topic_size)
 
 
 def bad_seed(journal, random_state, target_dir):
@@ -209,9 +212,9 @@ def bad_seed(journal, random_state, target_dir):
     )
 
 
-def process_state(state, docs, embedding_model, embeddings, journal, meta_path, target_dir):
+def process_state(state, docs, embedding_model, embeddings, journal, meta_path, target_dir, n_neighbors, min_topic_size):
     try:
-        run_bert_with_timeout(docs, embedding_model, embeddings, state, journal, meta_path)
+        run_bert_with_timeout(docs, embedding_model, embeddings, state, journal, meta_path, n_neighbors, min_topic_size)
     except:
         bad_seed(journal, state, target_dir)
         pass
@@ -247,7 +250,8 @@ if __name__ == "__main__":
                                   'data',
                                   'bibliometric',
                                   'raw',
-                                  'enhanced_ref_data.csv')
+                                  'enhanced_ref_data.zip'),
+                     compression='zip'
                     )
     df = df[(df['Main panel'] == 'C') |
             (df['Unit of assessment number'] == 4) |
@@ -262,6 +266,7 @@ if __name__ == "__main__":
                               'meta_data'
                               )
     logger.info(f'Working on SHAPE')
+    n_neighbors=3
     output_path = Path(target_dir) / f"metadata_shape.csv"
     docs = df["cleaned_full_text"].tolist()
     embeddings = embedding_model.encode(docs, show_progress_bar=True)
@@ -272,14 +277,17 @@ if __name__ == "__main__":
         metric="euclidean",
         prediction_data=False,
     )
+    min_topic_size = 10
     ctfidf_model = ClassTfidfTransformer(reduce_frequent_words=True)
     with tqdm_joblib(tqdm(desc="Processing States", total=len(seed_list))):
         with Parallel(n_jobs=sys.argv[2]) as parallel:
             parallel(
                 delayed(process_state)(
-                    state, docs, embedding_model, embeddings, output_path
+                    state, docs, embedding_model, embeddings, 'shape', output_path, target_dir, n_neighbors, min_topic_size
                 ) for state in seed_list
             )
+
+
     article_headers = ['id', 'doi', 'journal.issn',
                        'date_normal', 'abstract']
     data_raw = os.path.join(os.getcwd(), '..', 'data', 'bibliometric', 'raw')
@@ -313,6 +321,6 @@ if __name__ == "__main__":
         with tqdm_joblib(tqdm(desc="Processing States", total=len(seed_list))):
             Parallel(n_jobs=sys.argv[2])(
                 delayed(process_state)(
-                    state, docs, embedding_model, embeddings, journal, meta_path, target_dir
+                    state, docs, embedding_model, embeddings, journal, meta_path, target_dir, n_neighbors, min_topic_size
                 ) for state in seed_list
             )
