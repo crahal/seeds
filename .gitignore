@@ -161,5 +161,6 @@ data/*
 /data/symptomtracker/*.csv
 /data/*
 figures/
+/src/deprecated.zip
 
 src/deprecated
