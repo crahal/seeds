@@ -6,8 +6,29 @@ from tqdm import tqdm
 BASE = 'https://api.openalex.org/'
 FILTER = '&filter=title_and_abstract.search:random%20number'
 
-def get_domain_year_counts(filepath):
 
+def get_domain_counts(filepath):
+    csv_file_path = os.path.join(filepath, 'openalex_domain_counts.csv')
+    with open(csv_file_path, 'w', newline='', encoding='utf-8', errors='replace') as csvfile:
+        fieldnames = ['domain', 'count']
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        writer.writeheader()
+        for domain in range(1, 5):
+            try:
+                api_return = requests.get(
+                    f'https://api.openalex.org/works?filter=topics.domain.id:{domain}'
+                )
+                api_return.raise_for_status()
+                count = api_return.json()['meta']['count']
+                writer.writerow({'domain': domain, 'count': count})
+                csvfile.flush()
+            except requests.exceptions.RequestException as e:
+                print(f"Request failed for domain {domain}: {e}")
+            except KeyError:
+                print(f"Unexpected response structure for domain {domain}")
+
+
+def get_domain_year_counts(filepath):
     csv_file_path = os.path.join(filepath, 'openalex_domain_year_counts.csv')
     with open(csv_file_path, 'w', newline='', encoding='utf-8', errors='replace') as csvfile:
         fieldnames = ['year', 'domain', 'count']
@@ -54,6 +75,7 @@ def main():
     if not os.path.exists(filepath):
         os.makedirs(filepath)
 
+    get_domain_counts(filepath)
     get_domain_year_counts(filepath)
     get_year_counts(filepath)
 
@@ -72,6 +94,11 @@ def main():
     FILTER = '&filter=title_and_abstract.search:random%20number,title_and_abstract.search:pseudo'
     fname = 'openalex_rn_and_pseudo_papers.csv'
     get_papers(filepath, FILTER, fname)
+
+    FILTER = '&filter=title_and_abstract.search:random%20number,title_and_abstract.search:quasi'
+    fname = 'openalex_rn_and_quasi_papers.csv'
+    get_papers(filepath, FILTER, fname)
+
 
 
 def get_papers(filepath, FILTER, fname):

@@ -1,18 +1,324 @@
 import ast
 import os
 import math
-import json
 import numpy as np
 import pandas as pd
 import yfinance as yf
 import seaborn as sns
 import matplotlib as mpl
+import matplotlib.ticker as ticker
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 from pandas_datareader import data as pdr
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+
+import ast
+import os
+import math
+import numpy as np
+import pandas as pd
+import yfinance as yf
+import seaborn as sns
+import matplotlib as mpl
+import matplotlib.ticker as ticker
+import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
+from matplotlib.lines import Line2D
+from matplotlib.patches import Patch
+from pandas_datareader import data as pdr
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+
+def plot_further_examples():
+    def download_and_resample(ticker, start, end):
+        data = yf.download(ticker, start=start, end=end)
+        data = data.resample('D').ffill().dropna()  # Forward fill to handle any missing days
+        return data
+
+    usuk_data = download_and_resample('USDGBP=X', start="2022-10-01", end="2024-06-30")
+    rw_usuk_path = os.path.join(os.getcwd(), '..', 'data', 'random_walk', 'random_walks_usuk.zip')
+    random_walks_usuk = pd.read_csv(rw_usuk_path, header=None, compression='zip')
+
+    def adjust_index(data, rw_data):
+        end_date = data.index[-1]
+        start_date = end_date + pd.DateOffset(1)  # Start the random walk data the day after the end_date
+        new_index = pd.date_range(start=start_date, periods=len(rw_data), freq='D')
+        rw_data.index = new_index
+        return rw_data
+
+    random_walks_usuk = adjust_index(usuk_data, random_walks_usuk)
+    colors = ['#002d87', '#E89818', '#8b0000']
+    fill_color = (255 / 255, 223 / 255, 0 / 255, 6 / 255)
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6.5))
+
+    usuk_data['Close'].plot(ax=ax1, color=colors[0])
+    random_walks_usuk.min(axis=1).plot(ax=ax1, color=colors[1], alpha=0.8, linestyle='--')
+    random_walks_usuk.median(axis=1).plot(ax=ax1, color='k', alpha=0.8, linestyle='--')
+    random_walks_usuk.max(axis=1).plot(ax=ax1, color=colors[2], linestyle='--')
+    random_walks_usuk.quantile(0.05, axis=1).plot(ax=ax1, color='k', linestyle='--', alpha=0.5, linewidth=0.75)
+    random_walks_usuk.quantile(0.95, axis=1).plot(ax=ax1, color='k', linestyle='--', alpha=0.5, linewidth=0.75)
+
+    legend_elements = [
+        Line2D([0], [0], color=colors[2], linestyle='--',
+               label=r'Max', lw=2),
+        Line2D([0], [0], color=colors[1], linestyle='--',
+               label=r'Min', lw=2),
+        Line2D([0], [0], color=colors[0], linestyle='-',
+               label=r'Insample', lw=2),
+        Line2D([0], [0], color='k', linestyle='--',
+               label=r'Median', lw=2),
+        Line2D([0], [0], color='k', linestyle='--', alpha=0.5, linewidth=0.75,
+               label=r'95th Percentile', lw=2),
+        Patch(facecolor=fill_color, edgecolor=(0, 0, 0, 1),
+              label=r'Variance')
+    ]
+    ax1.legend(handles=legend_elements, loc='lower left', frameon=True,
+              fontsize=10, framealpha=1, facecolor='w',
+              edgecolor=(0, 0, 0, 1), ncols=2
+              )
+    ax1.set_xlabel('')
+
+
+    ax1.grid(which="major", linestyle='--', alpha=0.225)
+    ax1.set_title('a.', loc='left', fontsize=22, y=1.01)
+    ax2.set_title('b.', loc='left', fontsize=22, y=1.01)
+
+    ax1.fill_between(random_walks_usuk.index,
+                     random_walks_usuk.min(axis=1),
+                     random_walks_usuk.max(axis=1),
+                     color=fill_color)
+
+    ax1.yaxis.set_major_formatter(ticker.FuncFormatter(lambda y, pos: f'${y / 1:.2f}'))
+    ax1.set_ylabel('US ($) / GBP (£)', fontsize=14)
+
+    inset_ax = inset_axes(ax1, width="40%", height="25%", loc='upper left', borderpad=2)
+    sns.histplot(random_walks_usuk.iloc[-1], ax=inset_ax,
+                 color=colors[0], bins=12, legend=False, alpha=0.9,
+                 common_norm=False)
+    inset_ax.set_xlabel('US ($) / GBP (£)')
+    inset_ax.set_ylabel('Frequency')
+    inset_ax.set_axisbelow(True)
+    inset_ax.yaxis.set_label_position("right")
+    inset_ax.yaxis.tick_right()
+    inset_ax.grid(which="both", linestyle='--', alpha=0.3)
+    inset_ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda y, pos: f'{y / 1000:.0f}k'))
+    print('The minimum USUK RW forecast is:', random_walks_usuk.min(axis=1).iloc[-1])
+    print('The maximum USUK RW forecast is:', random_walks_usuk.max(axis=1).iloc[-1])
+    print('The median RW forecast is:', random_walks_usuk.median(axis=1).iloc[-1])
+    df = pd.read_csv(os.path.join(os.getcwd(),
+                                  '..',
+                                  'data',
+                                  'schelling',
+                                  'schelling_df.csv'),
+                     index_col=0)
+    df1 = pd.read_csv(os.path.join(os.getcwd(),
+                                   '..',
+                                   'data',
+                                   'schelling',
+                                   'schelling_summary.csv'),
+                      index_col=0
+                     )
+    df = df[df['Step'] != 'Convergence']
+    df['Step'] = df['Step'].astype(int)
+    df['Happy Count'] = df['Happy Count'].astype(float)
+    df['Happy Count Adjusted'] = df.groupby('Step')['Happy Count'].transform(lambda x: x - x.mean())
+    df['Step'] = df['Step'].astype(int)
+    df['Happy Count Adjusted'] = df['Happy Count Adjusted'].astype(float)
+    filtered_df = df[df['Step'] < 25]
+    sns.stripplot(x='Step', y='Happy Count Adjusted',
+                  data=filtered_df,
+                  jitter=0.3, alpha=0.05, edgecolor='k',
+                  linewidth=0.1, ax=ax2,
+                  color=colors[0])
+    min_happy_count = filtered_df.groupby('Step')['Happy Count Adjusted'].min()
+    max_happy_count = filtered_df.groupby('Step')['Happy Count Adjusted'].max()
+    ax2.plot(min_happy_count.index,
+             min_happy_count.values,
+             label='Min',
+             color=colors[1],
+             marker='o',
+             markerfacecolor='w',
+             linestyle='--')
+    ax2.plot(max_happy_count.index,
+             max_happy_count.values,
+             label='Max',
+             color=colors[2],
+             marker='o',
+             markerfacecolor='w',
+             linestyle='--')
+    ax2.set_xlabel('Step', fontsize=13)
+    ax2.set_ylabel('Mean Adjusted Happy Count', fontsize=13)
+    ax2.legend()
+    ax2.set_xticks([0, 4, 9, 14, 19, 24])
+    ax2.set_axisbelow(True)
+    ax2.grid(which="both", linestyle='--', alpha=0.3)
+    inset_ax = inset_axes(ax2, width="40%", height="25%", loc='lower right', borderpad=2)
+    sns.histplot(df1['Total Steps to Converge'], ax=inset_ax,
+                 color=colors[0], bins=12, legend=False, alpha=0.9,
+                 common_norm=False)
+    inset_ax.xaxis.set_label_position('top')
+    inset_ax.xaxis.tick_top()
+    inset_ax.set_xlabel('Total Steps')
+    inset_ax.set_ylabel('Frequency')
+    inset_ax.set_xlim(df1['Total Steps to Converge'].min()-2,
+                      df1['Total Steps to Converge'].max())
+    inset_ax.set_axisbelow(True)
+    inset_ax.grid(which="both", linestyle='--', alpha=0.3)
+    inset_ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda y, pos: f'{y / 1000:.0f}k'))
+    ax2.tick_params(width=0.75, length=6.5, axis='both', which='major', labelsize=11)
+    legend_elements2 = [
+        Line2D([0], [0], color=colors[2],
+               lw=2, linestyle='--', marker='o',
+               markerfacecolor='w', markersize=6,
+               label=r'Max', alpha=1),
+       Line2D([0], [0], color=colors[1], lw=2,
+              linestyle='-', marker='o',
+              markerfacecolor='w', markersize=6,
+              label=r'Min', alpha=1),
+       Line2D([0], [0], color=(0, 45/255, 135/255, 0.5),
+              linewidth=0,
+              marker='o', markeredgewidth=0.5,
+              markeredgecolor=(0, 0, 0, 1), markersize=6,
+              label=r'Count')]
+    ax2.legend(handles=legend_elements2, loc='upper right',
+              frameon=True,
+              fontsize=10, framealpha=1, facecolor='w',
+              edgecolor=(0, 0, 0, 1), ncols=1)
+    print(df1['Total Steps to Converge'].min(), df1['Total Steps to Converge'].max())
+    fig.subplots_adjust(wspace=0.25)
+    filename = 'rw_and_schelling'
+    plt.savefig(os.path.join(os.getcwd(), '..', 'figures', filename + '.pdf'),
+                bbox_inches='tight')
+    plt.savefig(os.path.join(os.getcwd(), '..', 'figures', filename + '.svg'),
+                bbox_inches='tight')
+    plt.savefig(os.path.join(os.getcwd(), '..', 'figures', filename + '.png'),
+                bbox_inches='tight', dpi=800)
+
+
+def plot_three_rws():
+    def download_and_resample(ticker, start, end):
+        data = yf.download(ticker, start=start, end=end)
+        data = data.resample('D').ffill().dropna()  # Forward fill to handle any missing days
+        return data
+
+    btc_data = download_and_resample('BTC-USD', start="2022-10-01", end="2024-06-30")
+    rw_btc_path = os.path.join(os.getcwd(), '..', 'data', 'random_walk', 'random_walks_btc.zip')
+    random_walks_btc = pd.read_csv(rw_btc_path, header=None, compression='zip')
+
+    nasdaq_data = download_and_resample('^IXIC', start="2022-10-01", end="2024-06-30")
+    rw_nasdaq_path = os.path.join(os.getcwd(), '..', 'data', 'random_walk', 'random_walks_nasdaq.zip')
+    random_walks_nasdaq = pd.read_csv(rw_nasdaq_path, header=None, compression='zip')
+
+    nvidia_data = download_and_resample('NVDA', start="2022-10-01", end="2024-06-30")
+    rw_nvidia_path = os.path.join(os.getcwd(), '..', 'data', 'random_walk', 'random_walks_nvidia.zip')
+    random_walks_nvidia = pd.read_csv(rw_nvidia_path, header=None, compression='zip')
+
+    def adjust_index(data, rw_data):
+        end_date = data.index[-1]
+        start_date = end_date + pd.DateOffset(1)  # Start the random walk data the day after the end_date
+        new_index = pd.date_range(start=start_date, periods=len(rw_data), freq='D')
+        rw_data.index = new_index
+        return rw_data
+
+    random_walks_btc = adjust_index(btc_data, random_walks_btc)
+    random_walks_nasdaq = adjust_index(nasdaq_data, random_walks_nasdaq)
+    random_walks_nvidia = adjust_index(nvidia_data, random_walks_nvidia)
+
+    colors = ['#001c54', '#E89818', '#8b0000']
+    fill_color = (255 / 255, 223 / 255, 0 / 255, 5 / 255)
+    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(14, 6), sharex=True)
+
+    btc_data['Close'].plot(ax=ax1, color=colors[0])
+    random_walks_btc.min(axis=1).plot(ax=ax1, color=colors[1], alpha=0.8, linestyle='--')
+    random_walks_btc.median(axis=1).plot(ax=ax1, color='k', alpha=0.8, linestyle='--')
+    random_walks_btc.max(axis=1).plot(ax=ax1, color=colors[2], linestyle='--')
+    random_walks_btc.quantile(0.05, axis=1).plot(ax=ax1, color='k', linestyle='--', alpha=0.5, linewidth=0.75)
+    random_walks_btc.quantile(0.95, axis=1).plot(ax=ax1, color='k', linestyle='--', alpha=0.5, linewidth=0.75)
+
+    nasdaq_data['Close'].plot(ax=ax2, color=colors[0])
+    random_walks_nasdaq.min(axis=1).plot(ax=ax2, color=colors[1], alpha=0.8, linestyle='--')
+    random_walks_nasdaq.median(axis=1).plot(ax=ax2, color='k', alpha=0.8, linestyle='--')
+    random_walks_nasdaq.max(axis=1).plot(ax=ax2, color=colors[2], linestyle='--')
+    random_walks_nasdaq.quantile(0.05, axis=1).plot(ax=ax2, color='k', linestyle='--', alpha=0.5, linewidth=0.75)
+    random_walks_nasdaq.quantile(0.95, axis=1).plot(ax=ax2, color='k', linestyle='--', alpha=0.5, linewidth=0.75)
+
+    nvidia_data['Close'].plot(ax=ax3, color=colors[0])
+    random_walks_nvidia.min(axis=1).plot(ax=ax3, color=colors[1], alpha=0.8, linestyle='-')
+    random_walks_nvidia.median(axis=1).plot(ax=ax3, color='k', alpha=0.8, linestyle='--')
+    random_walks_nvidia.max(axis=1).plot(ax=ax3, color=colors[2], linestyle='--')
+    random_walks_nvidia.quantile(0.05, axis=1).plot(ax=ax3, color='k', linestyle='--', alpha=0.5, linewidth=0.75)
+    random_walks_nvidia.quantile(0.95, axis=1).plot(ax=ax3, color='k', linestyle='--', alpha=0.5, linewidth=0.75)
+
+    legend_elements = [
+        Line2D([0], [0], color=colors[2], linestyle='--',
+               label=r'Max', lw=2),
+        Line2D([0], [0], color=colors[1], linestyle='--',
+               label=r'Min', lw=2),
+        Line2D([0], [0], color=colors[0], linestyle='-',
+               label=r'Insample', lw=2),
+        Line2D([0], [0], color='k', linestyle='--',
+               label=r'Median', lw=2),
+        Line2D([0], [0], color='k', linestyle='--', alpha=0.5, linewidth=0.75,
+               label=r'95th Percentile', lw=2),
+        Patch(facecolor=fill_color, edgecolor=(0, 0, 0, 1),
+              label=r'Variance')
+    ]
+
+    ax1.set_xlabel('')
+    ax2.set_xlabel('')
+    ax3.set_xlabel('')
+    ax1.legend(handles=legend_elements, loc='upper left', frameon=True,
+               fontsize=11, framealpha=1, facecolor='w',
+               edgecolor=(0, 0, 0, 1), ncols=1)
+    ax2.legend(handles=legend_elements, loc='upper left', frameon=True,
+               fontsize=11, framealpha=1, facecolor='w',
+               edgecolor=(0, 0, 0, 1), ncols=1)
+    ax3.legend(handles=legend_elements, loc='upper left', frameon=True,
+               fontsize=11, framealpha=1, facecolor='w',
+               edgecolor=(0, 0, 0, 1), ncols=1)
+    ax1.grid(which="major", linestyle='--', alpha=0.225)
+    ax2.grid(which="major", linestyle='--', alpha=0.225)
+    ax3.grid(which="major", linestyle='--', alpha=0.225)
+    ax1.set_title('a.', loc='left', fontsize=22, y=1.035)
+    ax2.set_title('b.', loc='left', fontsize=22, y=1.035)
+    ax3.set_title('c.', loc='left', fontsize=22, y=1.035)
+
+    ax1.fill_between(random_walks_btc.index,
+                     random_walks_btc.min(axis=1),
+                     random_walks_btc.max(axis=1),
+                     color=fill_color)
+    ax2.fill_between(random_walks_nasdaq.index,
+                     random_walks_nasdaq.min(axis=1),
+                     random_walks_nasdaq.max(axis=1),
+                     color=fill_color)
+    ax3.fill_between(random_walks_nvidia.index,
+                     random_walks_nvidia.min(axis=1),
+                     random_walks_nvidia.max(axis=1),
+                     color=fill_color)
+
+    ax1.yaxis.set_major_formatter(ticker.FuncFormatter(lambda y, pos: f'${y / 1000:.0f}k'))
+    ax2.yaxis.set_major_formatter(ticker.FuncFormatter(lambda y, pos: f'{y / 1:.0f}'))
+    ax3.yaxis.set_major_formatter(ticker.FuncFormatter(lambda y, pos: f'${y / 1:.0f}'))
+    ax1.set_ylabel('Bitcoin Price', fontsize=14)
+    ax2.set_ylabel('US/UK Exchange Rate', fontsize=14)
+    ax3.set_ylabel('NASDAQ Composite', fontsize=14)
+    plt.tight_layout()
+    filename = 'three_rws'
+    plt.savefig(os.path.join(os.getcwd(), '..', 'figures', filename + '.pdf'),
+                bbox_inches='tight')
+
+    print('The minimum BTC RW forecast is:', random_walks_btc.min(axis=1)[-1])
+    print('The maximum BTC RW forecast is:', random_walks_btc.max(axis=1)[-1])
+    print('The median BTC RW forecast is:', random_walks_btc.median(axis=1)[-1])
+
+    print('The minimum NASDAQ RW forecast is:', random_walks_nasdaq.min(axis=1)[-1])
+    print('The maximum NASDAQ RW forecast is:', random_walks_nasdaq.max(axis=1)[-1])
+    print('The median NASDAQRW forecast is:', random_walks_nasdaq.median(axis=1)[-1])
+
+    print('The minimum NVIDIA RW forecast is:', random_walks_nvidia.min(axis=1)[-1])
+    print('The maximum NVIDIA RW forecast is:', random_walks_nvidia.max(axis=1)[-1])
+    print('The median NVIDIA RW forecast is:', random_walks_nvidia.median(axis=1)[-1])
 
 
 def load_collisions():
@@ -63,8 +369,8 @@ def plot_collisions(figure_path):
     ax2.fill_between(df.index, df[0], df[2],
                      color=fill_color)
 
-    ax1.grid(which="both", linestyle='--', alpha=0.3)
-    ax2.grid(which="both", linestyle='--', alpha=0.3)
+    ax1.grid(which="both", linestyle='--', alpha=0.225)
+    ax2.grid(which="both", linestyle='--', alpha=0.225)
 
     ax1.tick_params(width=1, length=8, axis='both', which='major', labelsize=14)
     ax2.tick_params(width=1, length=8, axis='both', which='major', labelsize=14)
@@ -113,7 +419,7 @@ def plot_collisions(figure_path):
     ax1.set_ylim(0, 1500)
     ax1_twin.set_ylim(0, 0.045)
 
-    ax1.annotate('$\mu$ = ' + str(np.round(np.mean(final_collisions), 2)) + ', $\sigma$ = ' +
+    ax1.annotate(r'$\mu$ = ' + str(np.round(np.mean(final_collisions), 2)) + r', $\sigma$ = ' +
                  str(np.round(np.std(final_collisions), 3)),
                  xy=(0.5, 0.875), xytext=(0.5, 0.925), xycoords='axes fraction',
                  fontsize=13, ha='center', va='bottom',
@@ -137,59 +443,75 @@ def plot_collisions(figure_path):
 
 
 def plot_four_simple_examples(figure_path):
-    # Load data for 1a here
-    file_path_100 = os.path.join(os.getcwd(),
-                                 '..',
-                                 'data',
-                                 'rnom',
-                                 'rnom_samples100_seeds100000_results.json')
-    with open(file_path_100, 'r') as file:
-        data_dict_100 = json.load(file)
-
-    print('Loading in the rnom samples for 100 draws, 1000000')
-    print(f"The minimum mean value is: {data_dict_100['min_val']}")
-    print(f"The maximum mean value is: {data_dict_100['max_val']}")
-
-    # Load data for 1b here
+    df_sir = pd.read_csv(os.path.join(os.getcwd(),
+                                      '..',
+                                      'data',
+                                      'sir',
+                                      'sir_seeds_1dp.csv')
+                         )
     df_buffon = pd.read_csv(os.path.join(os.getcwd(),
-                                         '..', 'data',
+                                         '..',
+                                         'data',
                                          'needles',
                                          'results',
                                          'throw100_25000_5000seeds.csv'),
                             names=['Throws', 'Min', '25th_PC',
-                                   'Median', '75th_PC', 'Max'])
-
-    # Load data for 1c here
-
-    collisions, final_collisions = load_collisions()
-
-    #    results_path = os.path.join(os.getcwd(), '..', 'data', 'mcs',
-    #                                'results', 'merged_files',
-    #                                'merged_csvs.csv')
-    #    df = pd.read_csv(results_path, index_col=False)
-    #    min_series = df.min(axis=1).sort_values().reset_index()[0]
-    #    max_series = df.max(axis=1).sort_values().reset_index()[0]
-    #    med_series = df.median(axis=1).sort_values().reset_index()[0]
-    #    all_in_one_list = list(df.melt().drop('variable', axis=1).rename({'value': 'A'},
-    #                                                                     axis=1)['A'])
-
+                                   'Median', '75th_PC', 'Max']
+                            )
+    df_collisions = pd.read_csv(os.path.join(os.getcwd(),
+                                             '..',
+                                             'data',
+                                             'collisions',
+                                             'stats_32bit_rowwise.csv'
+                                             )
+                                )
+    df_collisions_finalrow = pd.read_csv(os.path.join(os.getcwd(),
+                                                      '..',
+                                                      'data',
+                                                      'collisions',
+                                                      'stats_32_final_row.csv')
+                                         )
     # Load data for 1d here
-    size = 366
-    btc_data = yf.download('BTC-USD', start="2021-05-08", end="2023-05-15")
-    rw_path = os.path.join(os.getcwd(), '..', 'data', 'random_walk', 'random_walks.csv')
-    random_walks = pd.read_csv(rw_path, header=None)
-    btc_data = btc_data / 1000
-    random_walks = random_walks / 1000
-    index = pd.DataFrame(index=btc_data.index +
-                               pd.DateOffset(len(btc_data) + 1))[0:size + 1].index
-    random_walks.index = index
-    rw_index = random_walks.index
-    rw_min = random_walks.min(axis=1)
-    rw_max = random_walks.max(axis=1)
-    rw_med = random_walks.median(axis=1)
+    #    size = 366
+    #    btc_data = yf.download('BTC-USD', start="2021-05-08", end="2023-05-15")
+    #    rw_path = os.path.join(os.getcwd(), '..', 'data', 'random_walk', 'random_walks.csv')
+    #    random_walks = pd.read_csv(rw_path, header=None)
+    #    btc_data = btc_data / 1000
+    #    random_walks = random_walks / 1000
+    #    index = pd.DataFrame(index=btc_data.index +
+    #                               pd.DateOffset(len(btc_data) + 1))[0:size + 1].index
+    #    random_walks.index = index
+    #    rw_index = random_walks.index
+    #    rw_min = random_walks.min(axis=1)
+    #    rw_max = random_walks.max(axis=1)
+    #    rw_med = random_walks.median(axis=1)
 
-    # Start figure here
-    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(14, 10.5))
+    df_solow = pd.read_csv(os.path.join(os.getcwd(),
+                                        '..',
+                                        'data',
+                                        'solow',
+                                        'solow_growth_results.zip'),
+                           compression = 'zip'
+                           )
+    df_solow = df_solow.groupby('Time').agg({
+        'Capital Stock': ['min', 'max', 'median'],
+        'Labor': ['min', 'max', 'median'],
+        'Output': ['min', 'max', 'median'],
+        'Savings Rate': ['min', 'max', 'median'],
+        'Depreciation Rate': ['min', 'max', 'median'],
+        'TFP': ['min', 'max', 'median']
+    }).reset_index()
+
+    fig = plt.figure(figsize=(14, 10.5), constrained_layout=True)
+    gs = gridspec.GridSpec(8, 2, figure=fig, )
+
+    ax1 = fig.add_subplot(gs[:4, 0])
+    ax2 = fig.add_subplot(gs[:4, 1])
+    ax3 = fig.add_subplot(gs[4:, 0])
+    ax4 = fig.add_subplot(gs[4:6, 1])
+    ax5 = fig.add_subplot(gs[6:8, 1])
+
+    # Remove the extra ax4 subplot created in the 3x2 grid layout
     letter_fontsize = 24
     label_fontsize = 18
     mpl.rcParams['font.family'] = 'Helvetica'
@@ -199,48 +521,33 @@ def plot_four_simple_examples(figure_path):
     # Colors
     #################
     colors = ['#001c54', '#E89818', '#8b0000']
-    fill_color = (255 / 255, 223 / 255, 0 / 255, 19 / 255)
+    fill_color = (255 / 255, 223 / 255, 0 / 255, 3 / 255)
 
     #################
     # Figure 1a here#
     #################
-
-    sns.histplot(data_dict_100['max_list'],
-                 ax=ax1,
-                 color=colors[0],
-                 bins=nbins, alpha=1)
-    ax1_twin = ax1.twinx()
-    sns.kdeplot(data_dict_100['max_list'],
-                ax=ax1_twin,
-                color=colors[0],
-                linestyle='--')
-
-    sns.histplot(data_dict_100['min_list'],
-                 ax=ax1,
-                 color=colors[1],
-                 bins=nbins, alpha=1)
-    sns.kdeplot(data_dict_100['min_list'],
-                ax=ax1_twin,
-                color=colors[1],
-                linestyle='--',
-                alpha=1)
-    ax1_twin.set_ylim(0, .4)
-    ax1.set_ylim(0, 14)
+    df_sir['Infected_min'].plot(ax=ax1, color=colors[1], linestyle='-')
+    df_sir['Infected_med'].plot(ax=ax1, color=colors[0])
+    df_sir['Infected_max'].plot(ax=ax1, color=colors[2])
+    ax1.fill_between(df_sir.index, df_sir['Infected_min'], df_sir['Infected_max'],
+                     color=fill_color)
+    ax1.set_xlim(-25, 1450)
+    ax1.set_xlabel('Time', fontsize=16)
+    ax1.set_ylabel(r'Fraction Infected', fontsize=16)
     legend_elements1 = [
-        Patch(facecolor=colors[0], edgecolor=(0, 0, 0, 1),
-              label=r'Maximal Sum'),
-        Patch(facecolor=colors[1], edgecolor=(0, 0, 0, 1),
-              label=r'Minimal Sum')]
-
+        Line2D([0], [0], color=colors[2], lw=2, linestyle='--',
+               label=r'Max'),
+        Line2D([0], [0], color=colors[1], lw=2, linestyle='--',
+               label=r'Min'),
+        Line2D([0], [0], color=colors[0], lw=2, linestyle='-',
+               label=r'Median'),
+        Patch(facecolor=fill_color, edgecolor=(0, 0, 0, 1),
+              label=r'Variance')]
     ax1.legend(handles=legend_elements1, loc='upper right', frameon=True,
                fontsize=11, framealpha=1, facecolor='w',
-               edgecolor=(0, 0, 0, 1), ncols=1
+               edgecolor=(0, 0, 0, 1), ncols=2
                )
-    ax1_twin.yaxis.set_label_position("right")
-    ax1_twin.yaxis.tick_right()
-    ax1_twin.set_ylabel('Density', fontsize=16)
-    ax1.set_ylabel('Count', fontsize=16)
-    ax1.set_xlabel('Draw', fontsize=16)
+    ax1.yaxis.set_major_formatter(ticker.FuncFormatter(lambda y, pos: f'{y / 10:.0f}%'))
 
     #################
     # Figure 1b here#
@@ -273,16 +580,17 @@ def plot_four_simple_examples(figure_path):
                fontsize=11, framealpha=1, facecolor='w',
                edgecolor=(0, 0, 0, 1), ncols=2
                )
-
     #################
     # Figure 1c here#
     #################
 
-    collisions[0].plot(color=colors[1], linestyle='--', ax=ax3)
-    collisions[1].plot(color=colors[0], linestyle='-', ax=ax3)
-    collisions[2].plot(color=colors[2], linestyle='--', ax=ax3)
+    df_collisions['min'].drop_duplicates().plot(color=colors[1], linestyle='--', ax=ax3)
+    df_collisions['median'].drop_duplicates().plot(color=colors[0], linestyle='-', ax=ax3)
+    df_collisions['max'].drop_duplicates().plot(color=colors[2], linestyle='--', ax=ax3)
 
-    ax3.fill_between(collisions.index, collisions[0], collisions[2],
+    ax3.fill_between(df_collisions.drop_duplicates().index,
+                     df_collisions.drop_duplicates()['min'],
+                     df_collisions.drop_duplicates()['max'],
                      color=fill_color)
 
     legend_elements2 = [
@@ -308,16 +616,16 @@ def plot_four_simple_examples(figure_path):
     ax3.set_ylabel('Number of 32-bit collisions', fontsize=16)
     ax3.set_xlabel('Sample size', fontsize=16)
 
-    ax3_inset = ax3.inset_axes([0.015, 0.55, 0.35, 0.35], transform=ax3.transAxes)
+    ax3_inset = ax3.inset_axes([0.035, 0.535, 0.375, 0.35], transform=ax3.transAxes)
     nbins = 25
-    sns.histplot(final_collisions,
+    sns.histplot(df_collisions_finalrow['x'],
                  ax=ax3_inset,
                  color=colors[0],
                  bins=nbins,
                  alpha=0.9
                  )
     ax3_twin = ax3_inset.twinx()
-    sns.kdeplot(final_collisions,
+    sns.kdeplot(df_collisions_finalrow['x'],
                 ax=ax3_twin,
                 color=colors[1],
                 linestyle='--',
@@ -325,8 +633,8 @@ def plot_four_simple_examples(figure_path):
                 )
     #    ax3_inset.set_ylim(0, 1500)
     #    ax3_twin.set_ylim(0, 0.045)
-    ax3_inset.annotate('$\mu$ = ' + str(np.round(np.mean(final_collisions), 1)) + ', $\sigma$ = ' +
-                       str(np.round(np.std(final_collisions), 1)),
+    ax3_inset.annotate(r'$\mu$ = ' + str(np.round(np.mean(df_collisions_finalrow['x']), 1)) + r', $\sigma$ = ' +
+                       str(np.round(np.std(df_collisions_finalrow['x']), 1)),
                        xy=(0.5, 1), xytext=(0.5, 1.1),
                        xycoords='axes fraction',
                        fontsize=11, ha='center', va='bottom',
@@ -334,7 +642,8 @@ def plot_four_simple_examples(figure_path):
                        arrowprops=dict(arrowstyle='-[, widthB=5.0, lengthB=1',
                                        lw=1.0)
                        )
-    #    ax3_twin.tick_params(width=1, length=8, axis='both', which='major', labelsize=14)
+
+    ax3_twin.tick_params(width=1, length=8, axis='both', which='major', labelsize=14)
     ax3.set_xlabel('Number of Draws', fontsize=16)
     ax3.set_ylabel('Count of Collisions', fontsize=16)
     #    ax3_twin.set_ylabel('Density of collisions', fontsize=16)
@@ -346,114 +655,59 @@ def plot_four_simple_examples(figure_path):
     ax3_inset.set_yticks([])
     ax3_twin.set_yticks([])
 
-    #    ax3.plot(min_series.index, min_series,
-    #             color=colors[1], linestyle='-',
-    #             alpha=0.8)
-    #    ax3.plot(max_series.index, max_series,
-    #             color=colors[1], linestyle='-',
-    #             alpha=0.8)
-    #    ax3.plot(med_series.index, med_series,
-    #             color=colors[0], linestyle='--',
-    #             alpha=0.8)
-    #    ax3.set_ylabel(r'Effect Size ($\rm{\hat{\beta}}$)',
-    #                   fontsize=16)
-    #    ax3.set_xlabel(r'Specification (n)',
-    #                   fontsize=16)
-    #    legend_elements3 = [Line2D([0], [0],
-    #                               color=colors[0],
-    #                               lw=1,
-    #                               linestyle='--',
-    #                               label=r'Median',
-    #                               alpha=0.7),
-    #                        Line2D([0], [0],
-    #                               color=colors[1],
-    #                               lw=1, linestyle='-',
-    #                               label=r'Min\Max',
-    #                               alpha=0.7), ]
-    #    ax3.legend(handles=legend_elements3,
-    #               loc='upper left', frameon=True,
-    #               fontsize=label_fontsize - 4,
-    #               framealpha=1, facecolor='w',
-    #               edgecolor=(0, 0, 0, 1))
-    #    ax3.hlines(y=0,
-    #               xmin=ax3.get_xlim()[0],
-    #               xmax=ax3.get_xlim()[1],
-    #               color='k',
-    #               linewidth=1,
-    #               linestyle='--',
-    #               alpha=0.5)
-    #    ax3.fill_between(min_series.index,
-    #                     min_series,
-    #                     y2=max_series,
-    #                     color=colors[1],
-    #                     alpha=0.075)
-    #
-    #    inset_ax = inset_axes(ax3,
-    #                          width="37%",
-    #                          height="85%",
-    #                          loc='lower right',
-    #                          bbox_to_anchor=(-0.005, 0.0975, 1, 0.295),
-    #                          bbox_transform=ax3.transAxes)
-    #    inset_ax.set_xlabel(r'Effect Size ($\rm{\hat{\beta}}$)',
-    #                        fontsize=label_fontsize - 5, labelpad=-3)
-    #    inset_ax.set_ylabel('Frequency', fontsize=label_fontsize - 5)
-    #    inset_ax.hist(all_in_one_list, bins=50, color=colors[0],
-    #                  alpha=0.6, edgecolor='k')
-    #    letter_fontsize = 24
-    #    label_fontsize = 18
-    #    mpl.rcParams['font.family'] = 'Helvetica'
+    ##################
+    # Figure 1d here #
+    ##################
 
-    #################
-    # Figure 1d here#
-    #################
-    btc_data['Close'].plot(ax=ax4, color=colors[0])
-    rw_min.plot(ax=ax4, color=colors[1], alpha=0.8, linestyle='--')
-    rw_max.plot(ax=ax4, color=colors[2], alpha=0.8, linestyle='--')
-    rw_med.plot(ax=ax4, color=colors[0], linestyle='-')
-    legend_elements4 = [
-        Line2D([0], [0], color=colors[2], linestyle='--',
-               label=r'Max', lw=2),
-        Line2D([0], [0], color=colors[1], linestyle='--',
-               label=r'Min', lw=2),
-        Line2D([0], [0], color=colors[0], linestyle='-',
-               label=r'Median', lw=2),
-        Patch(facecolor=fill_color, edgecolor=(0, 0, 0, 1),
-              label=r'Variance')
-    ]
-    ax4.legend(handles=legend_elements4, loc='upper right', frameon=True,
+    df_solow.columns = ['_'.join(col).strip() for col in df_solow.columns.values]
+    df_solow['Output_min'].plot(ax=ax4, color=colors[1], linestyle='--')
+    df_solow['Output_median'].plot(ax=ax4, color=colors[0])
+    df_solow['Output_max'].plot(ax=ax4, color=colors[2], linestyle='--')
+
+    df_solow['Capital Stock_min'].plot(ax=ax5, color=colors[1], linestyle='--')
+    df_solow['Capital Stock_median'].plot(ax=ax5, color=colors[0])
+    df_solow['Capital Stock_max'].plot(ax=ax5, color=colors[2], linestyle='--')
+
+    ax4.fill_between(df_solow.index,
+                     df_solow['Output_min'],
+                     df_solow['Output_max'],
+                     color=fill_color)
+    ax5.fill_between(df_solow.index,
+                     df_solow['Capital Stock_min'],
+                     df_solow['Capital Stock_max'],
+                     color=fill_color)
+
+    ax4.legend(handles=legend_elements1, loc='upper left', frameon=True,
                fontsize=11, framealpha=1, facecolor='w',
                edgecolor=(0, 0, 0, 1), ncols=2
                )
-    ylabels = ['${:,.0f}'.format(x) + 'k' for x in ax4.get_yticks()]
-    ax4.set_ylabel(r'Price', fontsize=16)
-    ax4.set_yticklabels(ylabels)
+    ax5.legend(handles=legend_elements1, loc='upper left', frameon=True,
+               fontsize=11, framealpha=1, facecolor='w',
+               edgecolor=(0, 0, 0, 1), ncols=2
+               )
     ax4.set_xlabel('')
-    ax4.fill_between(rw_index, rw_min, rw_max, color=fill_color)
+    ax5.set_xlabel('Time', fontsize=14)
+    ax4.set_ylabel('Output', fontsize=14)
+    ax5.set_ylabel('Capital Stock', fontsize=14)
+    ax4.yaxis.set_major_formatter(ticker.FuncFormatter(lambda y, pos: f'${y / 1000:.0f}k'))
+    ax5.yaxis.set_major_formatter(ticker.FuncFormatter(lambda y, pos: f'${y / 1000:.0f}k'))
 
-    ax1.grid(which="both", linestyle='--', alpha=0.3)
-    ax2.grid(which="both", linestyle='--', alpha=0.3)
-    ax3.grid(which="both", linestyle='--', alpha=0.3)
-    ax4.grid(which="major", linestyle='--', alpha=0.3)
+    ##############
+    # aesthetics #
+    ##############
 
-    ax2.tick_params(width=1, length=8, axis='both', which='major', labelsize=14)
     ax1.set_title('a.', loc='left', fontsize=letter_fontsize, y=1.0)
     ax2.set_title('b.', loc='left', fontsize=letter_fontsize, y=1.0)
     ax3.set_title('c.', loc='left', fontsize=letter_fontsize, y=1.0)
     ax4.set_title('d.', loc='left', fontsize=letter_fontsize, y=1.0)
+    ax5.set_title('e.', loc='left', fontsize=letter_fontsize, y=1.0)
 
-    ax2.tick_params(width=1, length=8)
-    ax2.set_zorder(3)
-
-    ax1.set_axisbelow(True)
-    ax2.set_axisbelow(True)
-    ax3.set_axisbelow(True)
-    ax4.set_axisbelow(True)
-
-    ax1.tick_params(axis='both', which='major', labelsize=14)
-    ax1_twin.tick_params(axis='both', which='major', labelsize=14)
-    ax2.tick_params(axis='both', which='major', labelsize=14)
-    ax3.tick_params(axis='both', which='major', labelsize=14)
-    ax4.tick_params(axis='both', which='major', labelsize=14)
+    for ax in [ax1, ax2, ax3, ax4, ax5]:
+        ax.grid(which="both", linestyle='--', alpha=0.225)
+        ax.set_zorder(3)
+        ax.set_axisbelow(True)
+        ax.tick_params(axis='both', which='major', labelsize=14, width=1, length=8)
+        ax.tick_params(width=1, length=8, axis='both', which='major', labelsize=14)
 
     for ax in [ax3_twin, ax3_inset]:
         sns.despine(ax=ax,
@@ -461,8 +715,7 @@ def plot_four_simple_examples(figure_path):
                     right=True,
                     top=True,
                     bottom=False)
-
-    plt.tight_layout()
+    # plt.tight_layout()
     filename = 'four_simple_examples'
     plt.savefig(os.path.join(figure_path, filename + '.pdf'),
                 bbox_inches='tight')
@@ -482,13 +735,13 @@ def plot_mvprobit(figure_path):
         new_df.at[draw, 'Median'] = df[df['draws']==draw]['rho21'].median()
 
     fig, (ax1) = plt.subplots(1, 1, figsize=(12, 4))
-    colors = ['#001c54', (255/255, 223/255, 0/255, 10/255), '#8b0000']
+    colors = ['#001c54', (255/255, 223/255, 0/255, 3/255), '#8b0000']
     mpl.rcParams['font.family'] = 'Helvetica'
     new_df['Median'].plot(ax=ax1, color=colors[0])
     new_df['Max'].plot(ax=ax1, linestyle='--', color=colors[2])
     new_df['Min'].plot(ax=ax1, linestyle='--', color=colors[2])
 
-    ax1.grid(which = "both", linestyle='--', alpha=0.25)
+    ax1.grid(which = "both", linestyle='--', alpha=0.225)
 
     ax1.set_title('a.', loc='left', fontsize=18)
     ax1.set_xlabel('Number of Draws', fontsize=14)
@@ -576,8 +829,8 @@ def plot_two_inference(figure_path):
     ax2.set_title('B.', loc='left', fontsize=letter_fontsize, y=1.0, x=-.05)
     ax1.set_axisbelow(True)
     ax2.set_axisbelow(True)
-    ax1.grid(which = "both", linestyle='--', alpha=0.3)
-    ax2.grid(which = "both", linestyle='--', alpha=0.3)
+    ax1.grid(which = "both", linestyle='--', alpha=0.225)
+    ax2.grid(which = "both", linestyle='--', alpha=0.225)
 
     btc_data = pdr.get_data_yahoo('BTC-USD', start="2021-05-08", end="2023-05-15")
     letter_fontsize = 24
@@ -619,7 +872,7 @@ def plot_two_inference(figure_path):
     ax2.set_ylabel(r'Price', fontsize=label_fontsize)
     ax2.tick_params(axis='both', which='major', labelsize=14)
     ax2.set_axisbelow(True)
-    ax2.grid(which="major", linestyle='--', alpha=0.3)
+    ax2.grid(which="major", linestyle='--', alpha=0.225)
     ax2.set_zorder(3)
     sns.despine()
     plt.tight_layout()
@@ -673,7 +926,7 @@ def combine_buffon_and_rw(figure_path):
                edgecolor=(0, 0, 0, 1), ncols=2
               )
     ax1.set_axisbelow(True)
-    ax1.grid(which = "both", linestyle='--', alpha=0.3)
+    ax1.grid(which = "both", linestyle='--', alpha=0.225)
     size = 366
     rw_path = os.path.join(os.getcwd(), '..', 'data', 'random_walk', 'random_walks.csv')
     random_walks = pd.read_csv(rw_path, header=None)
@@ -709,7 +962,7 @@ def combine_buffon_and_rw(figure_path):
     ax2.set_ylabel(r'Price', fontsize=label_fontsize)
     ax2.tick_params(axis='both', which='major', labelsize=14)
     ax2.set_axisbelow(True)
-    ax2.grid(which="major", linestyle='--', alpha=0.3)
+    ax2.grid(which="major", linestyle='--', alpha=0.225)
     ax2.set_zorder(3)
     sns.despine()
     plt.tight_layout()
@@ -898,10 +1151,10 @@ def covid_plotter(list1, list2, list3, list4, figure_path):
     ax3.set_ylabel('Density', fontsize=label_fontsize+2)
     ax3.set_xlabel('ROC-AUC (First Wave)', fontsize=label_fontsize+2)
     ax4.set_xlabel('ROC-AUC (First Year)', fontsize=label_fontsize+2)
-    ax1.set_title('A.', loc='left', fontsize=letter_fontsize, y=1.035)
-    ax2.set_title('B.', loc='left', fontsize=letter_fontsize, y=1.035)
-    ax3.set_title('C.', loc='left', fontsize=letter_fontsize, y=1.035)
-    ax4.set_title('D.', loc='left', fontsize=letter_fontsize, y=1.035)
+    ax1.set_title('a.', loc='left', fontsize=letter_fontsize, y=1.035)
+    ax2.set_title('b.', loc='left', fontsize=letter_fontsize, y=1.035)
+    ax3.set_title('c.', loc='left', fontsize=letter_fontsize, y=1.035)
+    ax4.set_title('d.', loc='left', fontsize=letter_fontsize, y=1.035)
 
     legend_elements1 = [Patch(facecolor=colors[0], edgecolor='k',
                               label=r'Bins', alpha=0.7),
@@ -931,7 +1184,7 @@ def covid_plotter(list1, list2, list3, list4, figure_path):
     def annotator(input_list, ax):
         mean = np.nanmean(input_list)
         var = np.nanstd(input_list)
-        ax.annotate('E(ROC-AUC) = ' + str(round(mean, 4)) + ', $\sigma$(ROC-AUC) = ' + str(round(var, 4)),
+        ax.annotate(r'E(ROC-AUC) = ' + str(round(mean, 4)) + r', $\sigma$(ROC-AUC) = ' + str(round(var, 4)),
                     xy=(0.5, 0.85), xytext=(0.5, 0.90), xycoords='axes fraction',
                     fontsize=17, ha='center', va='bottom',
                     bbox=dict(boxstyle='round,pad=0.35', fc='white'),
@@ -1009,7 +1262,7 @@ def mca_plotter(figure_path):
                   alpha=0.6, edgecolor='k')
     ax.set_title('B.', loc='left', fontsize=letter_fontsize, y=1.0, x=-.05)
     ax.set_axisbelow(True)
-    ax.grid(which = "both", linestyle='--', alpha=0.3)
+    ax.grid(which = "both", linestyle='--', alpha=0.225)
 #    inset_ax.set_title('.', loc='left', fontsize=letter_fontsize - 8, y=1.035, x=-0.12)
     sns.despine()
     plt.savefig(os.path.join(figure_path, 'mcs_seeds.pdf'), bbox_inches='tight')
@@ -1057,7 +1310,7 @@ def buffons_plotter(figure_path):
               edgecolor=(0, 0, 0, 1), ncols=2
              )
     ax.set_axisbelow(True)
-    ax.grid(which = "both", linestyle='--', alpha=0.3)
+    ax.grid(which = "both", linestyle='--', alpha=0.225)
     plt.savefig(os.path.join(figure_path,
                              'buffon_seeds.pdf'),
                 bbox_inches='tight')
@@ -1142,7 +1395,7 @@ def plot_three_predictions(first_wave_10k_stratified_list, figure_path):
         ax.set_ylim(ax.get_ylim()[0], ax.get_ylim()[1] + ax.get_ylim()[1] / 7)
     mean = round(np.nanmean(first_wave_10k_stratified_list), 3)
     var = round(np.nanstd(first_wave_10k_stratified_list), 3)
-    ax1.annotate('E(AUC) = ' + str(mean) + ', $\sigma$(AUC) = ' + str(var),
+    ax1.annotate(r'E(AUC) = ' + str(mean) + r', $\sigma$(AUC) = ' + str(var),
                  xy=(0.5, 0.875), xytext=(0.5, 0.925), xycoords='axes fraction',
                  fontsize=13, ha='center', va='bottom',
                  bbox=dict(boxstyle='round,pad=0.35', fc='white'),
@@ -1150,7 +1403,7 @@ def plot_three_predictions(first_wave_10k_stratified_list, figure_path):
                                  lw=1.0))
     mean = round(np.nanmean(housing['r2']), 3)
     var = round(np.nanstd(housing['r2']), 3)
-    ax2.annotate('E(R$^2$) = ' + str(mean) + ', $\sigma$(R$^2$) = ' + str(var),
+    ax2.annotate(r'E(R$^2$) = ' + str(mean) + r', $\sigma$(R$^2$) = ' + str(var),
                  xy=(0.5, 0.875), xytext=(0.5, 0.925), xycoords='axes fraction',
                  fontsize=13, ha='center', va='bottom',
                  bbox=dict(boxstyle='round,pad=0.35', fc='white'),
@@ -1158,7 +1411,7 @@ def plot_three_predictions(first_wave_10k_stratified_list, figure_path):
                                  lw=1.0))
     mean = round(np.nanmean(mnist['correct']), 3)
     var = round(np.nanstd(mnist['correct']), 3)
-    ax3.annotate('E(acc) = ' + str(mean) + ', $\sigma$(acc) = ' + str(var),
+    ax3.annotate(r'E(acc) = ' + str(mean) + r', $\sigma$(acc) = ' + str(var),
                  xy=(0.5, 0.875), xytext=(0.5, 0.925), xycoords='axes fraction',
                  fontsize=13, ha='center', va='bottom',
                  bbox=dict(boxstyle='round,pad=0.35', fc='white'),
@@ -1167,9 +1420,9 @@ def plot_three_predictions(first_wave_10k_stratified_list, figure_path):
     ax1.set_axisbelow(True)
     ax2.set_axisbelow(True)
     ax3.set_axisbelow(True)
-    ax1.grid(which="both", linestyle='--', alpha=0.3)
-    ax2.grid(which="both", linestyle='--', alpha=0.3)
-    ax3.grid(which="both", linestyle='--', alpha=0.3)
+    ax1.grid(which="both", linestyle='--', alpha=0.225)
+    ax2.grid(which="both", linestyle='--', alpha=0.225)
+    ax3.grid(which="both", linestyle='--', alpha=0.225)
     sns.despine()
     plt.tight_layout()
     plt.savefig(os.path.join(figure_path, 'prediction_seeds.pdf'), bbox_inches='tight')
@@ -1195,7 +1448,7 @@ def make_ffc_just_gpa(ffc, figure_path):
                         xycoords='axes fraction',
                         ha='left', va='center', fontsize=14)
     g.ax_joint.tick_params(axis='both', which='major', labelsize=13)
-    g.ax_joint.grid(which = "both", linestyle='--', alpha=0.5)
+    g.ax_joint.grid(which = "both", linestyle='--', alpha=0.25)
     plt.savefig(os.path.join(figure_path, 'ffc_seeds_just_gpa.pdf'), bbox_inches='tight')
     plt.show()
     print('Beta minimum for GPA: ', df1['beta'].min())
@@ -1230,8 +1483,8 @@ def plot_rgms(figure_path):
     ax3.set_xlabel('Pr=0.4', fontsize=label_fontsize)
     ax1.set_title('A.', loc='left', fontsize=letter_fontsize, y=1.035)
     ax3.tick_params(axis='y', colors='k')
-    ax1.grid(which = "both", linestyle='--', alpha=0.4)
-    ax3.grid(which = "both", linestyle='--', alpha=0.4)
+    ax1.grid(which = "both", linestyle='--', alpha=0.225)
+    ax3.grid(which = "both", linestyle='--', alpha=0.225)
     ax1.yaxis.set_major_locator(plt.MaxNLocator(5))
     ax3.yaxis.set_major_locator(plt.MaxNLocator(5))
     plt.setp(ax1.collections, alpha=.85)
@@ -1457,10 +1710,10 @@ def plot_topics_barplot(figure_path):
     ax2.set_xlim(0, 160)
     ax3.set_xlim(0, ax3.get_xlim()[1])
     ax4.set_xlim(0, ax4.get_xlim()[1])
-    ax1.grid(which="both", linestyle='--', alpha=0.25)
-    ax2.grid(which="both", linestyle='--', alpha=0.25)
-    ax3.grid(which="both", linestyle='--', alpha=0.25)
-    ax4.grid(which="both", linestyle='--', alpha=0.25)
+    ax1.grid(which="both", linestyle='--', alpha=0.225)
+    ax2.grid(which="both", linestyle='--', alpha=0.225)
+    ax3.grid(which="both", linestyle='--', alpha=0.225)
+    ax4.grid(which="both", linestyle='--', alpha=0.225)
     ax1.set_axisbelow(True)
     ax2.set_axisbelow(True)
     ax3.set_axisbelow(True)
@@ -1526,12 +1779,15 @@ def load_scientometrics():
     df_qrng = pd.read_csv('../data/openalex_returns/openalex_rn_and_quantum_papers.csv')
     df_hrng = pd.read_csv('../data/openalex_returns/openalex_rn_and_hardware_papers.csv')
     df_prng = pd.read_csv('../data/openalex_returns/openalex_rn_and_pseudo_papers.csv')
+    df_quarng = pd.read_csv('../data/openalex_returns/openalex_rn_and_quasi_papers.csv')
     df_yr = pd.read_csv('../data/openalex_returns/openalex_year_counts.csv')
     df_yr_dom = pd.read_csv('../data/openalex_returns/openalex_domain_year_counts.csv')
-    return df_rng, df_hrng, df_qrng, df_prng, df_yr, df_yr_dom
+    df_dom = pd.read_csv('../data/openalex_returns/openalex_domain_counts.csv')
+    df_dom['domain'] = df_dom['domain'].astype(str)
+    return df_rng, df_hrng, df_qrng, df_prng, df_quarng, df_yr, df_yr_dom, df_dom
 
 
-def desc_print_scientometrics(df_rng, df_hrng, df_qrng, df_prng):
+def desc_print_scientometrics(df_rng, df_hrng, df_qrng, df_prng, df_quarng):
     def desc_print(df, term):
         print(f'We have {len(df)} papers for {term}).')
 
@@ -1563,22 +1819,28 @@ def desc_print_scientometrics(df_rng, df_hrng, df_qrng, df_prng):
     print('')
     desc_print(df_prng, '"random number" and "pseudo"')
     print('')
+    desc_print(df_quarng, '"random number" and "quasi"')
+    print('')
 
-def make_table(df_rng, df_hrng, df_qrng, df_prng, column):
+
+def make_table(df_rng, df_hrng, df_qrng, df_prng, df_quarng, column):
     df_rng_val = df_rng[column].value_counts()
     df_hrng_val = df_hrng[column].value_counts()
     df_qrng_val = df_qrng[column].value_counts()
     df_prng_val = df_prng[column].value_counts()
+    df_quarng_val = df_quarng[column].value_counts()
     df_merged = pd.merge(df_rng_val, df_hrng_val, left_index=True, right_index=True, how='left')
     df_merged = df_merged.rename({'count_x': '"Random Numbers"', 'count_y': '"Random Numbers" and "Hardware"'}, axis=1)
     df_merged = pd.merge(df_merged, df_qrng_val, left_index=True, right_index=True, how='left')
     df_merged = df_merged.rename({'count': '"Random Numbers" and "Quantum"'}, axis=1)
     df_merged = pd.merge(df_merged, df_prng_val, left_index=True, right_index=True, how='left')
     df_merged = df_merged.rename({'count': '"Random Numbers" and "Pseudo"'}, axis=1)
+    df_merged = pd.merge(df_merged, df_quarng_val, left_index=True, right_index=True, how='left')
+    df_merged = df_merged.rename({'count': '"Random Numbers" and "Quasi"'}, axis=1)
     return df_merged
 
 
-def make_scientometric_ts(df_rng, df_hrng, df_qrng, df_prng, df_yr, domain_df):
+def make_scientometric_ts(df_rng, df_hrng, df_qrng, df_prng, df_quarng, df_yr):
     df_yr = df_yr.rename({'count': 'total_count'}, axis=1)
     df_yr_rng = pd.DataFrame(df_rng['publication_year'].value_counts())
     df_yr_rng = df_yr_rng.reset_index()
@@ -1596,28 +1858,15 @@ def make_scientometric_ts(df_rng, df_hrng, df_qrng, df_prng, df_yr, domain_df):
     df_yr_prng = df_yr_prng.reset_index()
     df_yr_prng = df_yr_prng.rename({'publication_year': 'year', 'count': 'PRNG_count'}, axis=1)
 
+    df_yr_quarng = pd.DataFrame(df_quarng['publication_year'].value_counts())
+    df_yr_quarng = df_yr_quarng.reset_index()
+    df_yr_quarng = df_yr_quarng.rename({'publication_year': 'year', 'count': 'QUASI_count'}, axis=1)
+
     df_yr = pd.merge(df_yr, df_yr_rng, left_on='year', right_on='year', how='left')
     df_yr = pd.merge(df_yr, df_yr_hrng, left_on='year', right_on='year', how='left')
     df_yr = pd.merge(df_yr, df_yr_qrng, left_on='year', right_on='year', how='left')
     df_yr = pd.merge(df_yr, df_yr_prng, left_on='year', right_on='year', how='left')
-    for rng_type in ['RNG_count', 'HRNG_count', 'QRNG_count', 'PRNG_count']:
+    df_yr = pd.merge(df_yr, df_yr_quarng, left_on='year', right_on='year', how='left')
+    for rng_type in ['RNG_count', 'HRNG_count', 'QRNG_count', 'PRNG_count', 'QUASI_count']:
         df_yr[rng_type] = df_yr[rng_type] / df_yr['total_count'] * 100
-
-    import matplotlib.pyplot as plt
-    from mpl_toolkits.axes_grid1.inset_locator import inset_axes
-    fig, (ax1) = plt.subplots(1, 1, figsize=(14, 7))
-    df_yr[(df_yr['year'] > 1960) & (df_yr['year'] <= 2020)].set_index('year')[['RNG_count']].plot(ax=ax1)
-
-    ax_inset1 = inset_axes(ax1, width="30%", height="30%", loc='upper left',
-                           bbox_to_anchor=(0.05, 0, 1, 1), bbox_transform=ax1.transAxes, borderpad=2)
-    df_yr[(df_yr['year'] > 1960) & (df_yr['year'] <= 2020)].set_index('year')[['HRNG_count',
-                                                                               'QRNG_count',
-                                                                               'PRNG_count']].plot(ax=ax_inset1,
-                                                                                                   kind='area')
-
-    ax_inset2 = inset_axes(ax1, width="30%", height="30%", loc='lower right',
-                           bbox_to_anchor=(0.0, 0, 1, 1), bbox_transform=ax1.transAxes, borderpad=2)
-
-    domain_df.reindex(index=domain_df.index[::-1]).plot(kind='barh', ax=ax_inset2, legend=False)
-    plt.show()
     return df_yr
