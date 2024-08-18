@@ -6,6 +6,7 @@ import pandas as pd
 import yfinance as yf
 import seaborn as sns
 import matplotlib as mpl
+from matplotlib.gridspec import GridSpec
 import matplotlib.ticker as ticker
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
@@ -13,29 +14,333 @@ from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 from pandas_datareader import data as pdr
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+from matplotlib.ticker import FuncFormatter
 
-import ast
-import os
-import math
-import numpy as np
-import pandas as pd
-import yfinance as yf
-import seaborn as sns
-import matplotlib as mpl
-import matplotlib.ticker as ticker
-import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
-from matplotlib.lines import Line2D
-from matplotlib.patches import Patch
-from pandas_datareader import data as pdr
-from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+
+def plot_scientometrics(figure_path, domain_df):
+    df_rng, df_hrng, df_qrng, df_prng, df_quarng, df_yr, df_yr_dom, df_dom = load_scientometrics()
+    df_yr = make_scientometric_ts(df_rng, df_hrng, df_qrng, df_prng, df_quarng, df_yr, domain_df)
+
+    colors = ['#001c54', '#E89818']
+    percent_formatter = FuncFormatter(lambda x, pos: f'{x:.3f}%')
+
+    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(14, 9), sharex=True)
+
+    df_yr[df_yr['year'] >= 1970].set_index('year', inplace=False)[['QRNG_count']].plot(ax=ax1, legend=False,
+                                                                                       color=colors[0], alpha=1)
+    df_yr[df_yr['year'] >= 1970].set_index('year', inplace=False)[['PRNG_count']].plot(ax=ax2, legend=False,
+                                                                                       color=colors[0], alpha=1)
+    df_yr[df_yr['year'] >= 1970].set_index('year', inplace=False)[['HRNG_count']].plot(ax=ax3, legend=False,
+                                                                                       color=colors[0], alpha=1)
+    df_yr[df_yr['year'] >= 1970].set_index('year', inplace=False)[['QUASI_count']].plot(ax=ax4, legend=False,
+                                                                                        color=colors[0], alpha=1)
+
+    for ax, title in zip([ax1, ax2, ax3, ax4], ['a.', 'b.', 'c.', 'd.']):
+        ax.set_axisbelow(True)
+        ax.grid(which="both", linestyle='--', alpha=0.225)
+        ax.set_title(title, loc='left', fontsize=21, y=1.025, x=-0.075)
+        ax.tick_params(axis='both', which='major', labelsize=12)
+        ax.yaxis.set_major_formatter(percent_formatter)
+
+    ax1.set_ylabel('Percent of All Records', fontsize=15)
+    ax3.set_ylabel('Percent of All Records', fontsize=15)
+    ax3.set_xlabel('Year', fontsize=15)
+    ax4.set_xlabel('Year', fontsize=15)
+
+    # Create insets for each subplot
+    inset_ax1 = ax1.inset_axes([0.25, 0.6, 0.225, 0.35])  # Top-left position inset
+    domain_df['"Random Numbers" and "Quantum"'].plot(kind='barh', ax=inset_ax1, edgecolor='k', color=colors[1])
+
+    inset_ax2 = ax2.inset_axes([0.25, 0.6, 0.225, 0.35])  # Top-left position inset
+    domain_df['"Random Numbers" and "Pseudo"'].plot(kind='barh', ax=inset_ax2, edgecolor='k', color=colors[1])
+
+    inset_ax3 = ax3.inset_axes([0.25, 0.6, 0.225, 0.35])  # Top-left position inset
+    domain_df['"Random Numbers" and "Hardware"'].plot(kind='barh', ax=inset_ax3, edgecolor='k', color=colors[1])
+
+    inset_ax4 = ax4.inset_axes([0.25, 0.6, 0.225, 0.35])  # Top-left position inset
+    domain_df['"Random Numbers" and "Quasi"'].plot(kind='barh', ax=inset_ax4, edgecolor='k', color=colors[1])
+
+    # Remove x-axis labels and y-axis ticks from insets
+    for inset_ax in [inset_ax1, inset_ax2, inset_ax3, inset_ax4]:
+        inset_ax.set_ylabel('')
+
+        # Find the maximum width of the bars to adjust the x-axis limits
+        max_width = max([p.get_width() for p in inset_ax.patches])
+        inset_ax.set_xlim(0, max_width * 1.2)  # Extend x-axis limit slightly beyond the max bar width
+
+        inset_ax.set_xticks([])
+        inset_ax.set_xticklabels([])
+        # Annotate bars with their value (horizontal annotations inside the bars)
+        for p in inset_ax.patches:
+            width = p.get_width()
+            inset_ax.annotate(f'{width:.4f}%',
+                              (width + 0.00025, p.get_y() + p.get_height() / 2),
+                              # Place text slightly to the right of the bar
+                              ha='left', va='center', fontsize=10, color='k')
+
+    ax1.text(0.95, 0.05, '"Random Numbers"\nand "Quantum"    ',  # Example annotation text
+             transform=ax1.transAxes, fontsize=10, color='black',
+             ha='right', va='bottom',
+             bbox=dict(boxstyle='round,pad=0.3', edgecolor='black', facecolor='white'))
+
+    ax2.text(0.95, 0.05, '"Random Numbers"\nand "Pseudo"     ',  # Example annotation text
+             transform=ax2.transAxes, fontsize=10, color='black',
+             ha='right', va='bottom',
+             bbox=dict(boxstyle='round,pad=0.3', edgecolor='black', facecolor='white'))
+
+    ax3.text(0.95, 0.05, '"Random Numbers"\nand "Hardware"   ',  # Example annotation text
+             transform=ax3.transAxes, fontsize=10, color='black',
+             ha='right', va='bottom',
+             bbox=dict(boxstyle='round,pad=0.3', edgecolor='black', facecolor='white'))
+
+    ax4.text(0.95, 0.05, '"Random Numbers"\nand "Quasi"       ',  # Example annotation text
+             transform=ax4.transAxes, fontsize=10, color='black',
+             ha='right', va='bottom',
+             bbox=dict(boxstyle='round,pad=0.3', edgecolor='black', facecolor='white'))
+    plt.tight_layout()
+    sns.despine()
+    sns.despine(ax=inset_ax1, left=False, right=True, top=True, bottom=True)
+    sns.despine(ax=inset_ax2, left=False, right=True, top=True, bottom=True)
+    sns.despine(ax=inset_ax3, left=False, right=True, top=True, bottom=True)
+    sns.despine(ax=inset_ax4, left=False, right=True, top=True, bottom=True)
+    plt.savefig(os.path.join(figure_path, 'scientometrics_over_time.pdf'), bbox_inches='tight')
+
+
+def plot_predictions(first_wave_10k_stratified_list, figure_path):
+    fig = plt.figure(figsize=(16, 10.5))
+    gs = GridSpec(6, 2, figure=fig)
+    ax1 = fig.add_subplot(gs[0:3, 0:1])
+    ax2 = fig.add_subplot(gs[0:1, 1:2])
+    ax3 = fig.add_subplot(gs[1:2, 1:2])
+    ax4 = fig.add_subplot(gs[2:3, 1:2])
+    ax5 = fig.add_subplot(gs[3:4, 0:1])
+    ax6 = fig.add_subplot(gs[4:5, 0:1])
+    ax7 = fig.add_subplot(gs[5:6, 0:1])
+    ax8 = fig.add_subplot(gs[3:6, 1:2])
+
+    colors = ['#001c54', '#E89818']
+    housing = pd.read_csv(os.path.join(os.getcwd(),
+                                       '..',
+                                       'data',
+                                       'housing',
+                                       'results',
+                                       'r2.csv'),
+                          index_col=0)
+    housing = housing.reset_index()
+
+    titanic = pd.read_csv(os.path.join(os.getcwd(),
+                                       '..',
+                                       'data',
+                                       'titanic',
+                                       'results',
+                                       'titanic_outputs.csv'))
+    mnist = pd.read_csv(os.path.join(os.path.join(os.getcwd(),
+                                                  '..',
+                                                  'data',
+                                                  'MNIST',
+                                                  'results',
+                                                  'mnist_results.csv')))
+    print('Covid min: ', np.min(first_wave_10k_stratified_list))
+    print('Covid max: ', np.max(first_wave_10k_stratified_list))
+    print('Covid mean: ', np.mean(first_wave_10k_stratified_list))
+    print('Housing min: ', housing['R2'].min())
+    print('Housing max: ', housing['R2'].max())
+    print('Housing mean: ', housing['R2'].mean())
+    print('Titanic min: ', titanic['IMV'].min())
+    print('Titanic max: ', titanic['IMV'].max())
+    print('Titanic mean: ', titanic['IMV'].mean())
+    print('MNIST min: ', mnist['correct'].min())
+    print('MNIST max: ', mnist['correct'].max())
+    print('MNIST mean: ', mnist['correct'].mean())
+    nbins = 24
+    letter_fontsize = 24
+    label_fontsize = 18
+    mpl.rcParams['font.family'] = 'Helvetica'
+    csfont = {'fontname': 'Helvetica'}
+    sns.histplot(first_wave_10k_stratified_list, edgecolor='k',
+                 color=colors[0], alpha=0.7, stat='density',
+                 ax=ax1, bins=nbins)
+    sns.kdeplot(first_wave_10k_stratified_list, color=colors[1], ax=ax1, common_norm=True)
+
+    sns.histplot(housing['R2'], edgecolor='k',
+                 color=colors[0], alpha=0.7, stat='density',
+                 ax=ax2, bins=nbins)
+
+    modelling_seed_variance = housing.groupby('Folding_Seed')['R2'].std().reset_index()
+    modelling_seed_variance.columns = ['Folding_Seed', 'R2_variance']
+    sns.histplot(modelling_seed_variance['R2_variance'], edgecolor='k',
+                 color=colors[1], alpha=0.7, stat='density',
+                 ax=ax3, bins=nbins)
+
+    folding_seed_variance = housing.groupby('Modeling_Seed')['R2'].std().reset_index()
+    folding_seed_variance.columns = ['Modeling_Seed', 'R2_variance']
+    sns.histplot(np.round(folding_seed_variance['R2_variance'], 5), edgecolor='k',
+                 color=colors[1], alpha=0.7, stat='density',
+                 ax=ax4, bins=nbins)
+
+    sns.histplot(titanic['IMV'], edgecolor='k',
+                 color=colors[0], alpha=0.7, stat='density',
+                 ax=ax5, bins=nbins)
+    # sns.kdeplot(titanic['IMV'], color=colors[0], ax=ax5, common_norm=True)
+
+    modelling_seed_variance = titanic.groupby('Folding_Seed')['IMV'].std().reset_index()
+    modelling_seed_variance.columns = ['Folding_Seed', 'IMV_variance']
+    sns.histplot(modelling_seed_variance['IMV_variance'], edgecolor='k',
+                 color=colors[1], alpha=0.7, stat='density',
+                 ax=ax6, bins=nbins)
+
+    folding_seed_variance = titanic.groupby('Modeling_Seed')['IMV'].std().reset_index()
+    folding_seed_variance.columns = ['Modeling_Seed', 'IMV_variance']
+    sns.histplot(folding_seed_variance['IMV_variance'], edgecolor='k',
+                 color=colors[1], alpha=0.7, stat='density',
+                 ax=ax7, bins=nbins)
+
+    sns.histplot(mnist['correct'], edgecolor='k',
+                 color=colors[0], alpha=0.7, stat='density',
+                 ax=ax8, bins=nbins)
+    sns.kdeplot(mnist['correct'], color=colors[1], ax=ax8, common_norm=True)
+
+    for ax in [ax2, ax3, ax4, ax8]:
+        ax.yaxis.set_label_position('right')
+        ax.yaxis.tick_right()
+
+    ax1.set_ylabel('Density', fontsize=15)
+    ax2.set_ylabel('')
+    ax3.set_ylabel('')
+    ax4.set_ylabel('')
+    ax5.set_ylabel('Density', fontsize=15)
+    ax6.set_ylabel('Density', fontsize=15)
+    ax7.set_ylabel('Density', fontsize=15)
+    ax8.set_ylabel('')
+
+    ax1.set_xlabel('ROC-AUC', fontsize=15)
+    ax2.set_xlabel(r'R$^2$', fontsize=15)
+    ax3.set_xlabel(r'R$^2$: Modelling ($\sigma$)', fontsize=15)
+    ax4.set_xlabel(r'R$^2$: Folding ($\sigma$)', fontsize=15)
+    ax5.set_xlabel('IMV', fontsize=14)
+    ax6.set_xlabel(r'IMV: Modelling ($\sigma$)', fontsize=15)
+    ax7.set_xlabel(r'IMV: Folding ($\sigma$)', fontsize=15)
+
+    ax8.set_xlabel('Accuracy', fontsize=16)
+    legend_elements1 = [Patch(facecolor=colors[0], edgecolor='k',
+                              label=r'Bins', alpha=0.7),
+                        Line2D([0], [0], color=colors[1], lw=1, linestyle='-',
+                               label=r'KDE', alpha=0.7), ]
+    legend_elements2 = [Patch(facecolor=colors[1], edgecolor='k',
+                              label=r'Bins', alpha=0.7),
+                        Line2D([0], [0], color=colors[0], lw=1, linestyle='-',
+                               label=r'KDE', alpha=0.7), ]
+    ax1.legend(handles=legend_elements1, loc='center left', frameon=True,
+               fontsize=label_fontsize - 2, framealpha=1, facecolor='w',
+               edgecolor=(0, 0, 0, 1)
+               )
+    ax8.legend(handles=legend_elements1, loc='center left', frameon=True,
+               fontsize=label_fontsize - 2, framealpha=1, facecolor='w',
+               edgecolor=(0, 0, 0, 1)
+               )
+
+    mean = round(np.nanmean(first_wave_10k_stratified_list), 3)
+    var = round(np.nanstd(first_wave_10k_stratified_list), 3)
+    ax1.annotate(r'E(AUC) = ' + str(mean) + r', $\sigma$(AUC) = ' + str(var),
+                 xy=(0.5, 0.875), xytext=(0.5, 0.925), xycoords='axes fraction',
+                 fontsize=13, ha='center', va='bottom',
+                 bbox=dict(boxstyle='round,pad=0.35', fc='white'),
+                 arrowprops=dict(arrowstyle='-[, widthB=12.5, lengthB=1',
+                                 lw=1.0))
+
+    mean = round(np.nanmean(mnist['correct']), 3)
+    var = round(np.nanstd(mnist['correct']), 3)
+    ax8.annotate(r'E(acc) = ' + str(mean) + r', $\sigma$(acc) = ' + str(var),
+                 xy=(0.5, 0.875), xytext=(0.5, 0.925), xycoords='axes fraction',
+                 fontsize=13, ha='center', va='bottom',
+                 bbox=dict(boxstyle='round,pad=0.35', fc='white'),
+                 arrowprops=dict(arrowstyle='-[, widthB=12.5, lengthB=1',
+                                 lw=1.0))
+
+    for ax, title in zip([ax1, ax2, ax3, ax4, ax5, ax6, ax7, ax8],
+                         ['a.', 'b.', 'c.', 'd.', 'e.', 'f.', 'g.', 'h.']):
+        ax.set_axisbelow(True)
+        ax.grid(which="both", linestyle='--', alpha=0.225)
+        ax.set_title(title, loc='left', fontsize=21, y=1.025, x=-0.075)
+        ax.tick_params(axis='both', which='major', labelsize=14)
+        ax.set_ylim(ax.get_ylim()[0], ax.get_ylim()[1] + ax.get_ylim()[1] / 7)
+
+    ax1.axvline(x=0.76, ymin=0, ymax=0.82, color='red', linestyle='--')
+    ymin, ymax = ax1.get_ylim()
+    annotation_y = ymin + (ymax - ymin) * 0.5  # 70% up the y-axis
+    ax1.annotate(' Original Result:\nROC-AUC=0.76\n (0.74-0.78)',
+                 xy=(0.76, annotation_y),  # Position the arrow at 9625, 70% of y-axis range
+                 xytext=(0.8, annotation_y),  # Position the text slightly to the left
+                 ha='center',
+                 va='center',
+                 fontsize=12,  # Adjust fontsize for better visibility
+                 bbox=dict(boxstyle="round,pad=0.3", edgecolor="w", facecolor="w"),
+                 arrowprops=dict(arrowstyle='->',
+                                 connectionstyle="arc3,rad=0",
+                                 color='black',
+                                 mutation_scale=20,
+                                 lw=1)
+                 )
+
+    ax8.axvline(x=9625, ymin=0, ymax=0.82, color='red', linestyle='--')
+    ymin, ymax = ax8.get_ylim()
+    annotation_y = ymin + (ymax - ymin) * 0.6  # 70% up the y-axis
+    ax8.annotate('   Seed 42:\nAccuracy=9625',
+                 xy=(9625, annotation_y),  # Position the arrow at 9625, 70% of y-axis range
+                 xytext=(9300, annotation_y),  # Position the text slightly to the left
+                 ha='center',
+                 va='center',
+                 fontsize=12,  # Adjust fontsize for better visibility
+                 bbox=dict(boxstyle="round,pad=0.3", edgecolor="w", facecolor="w"),
+                 arrowprops=dict(arrowstyle='->',
+                                 connectionstyle="arc3,rad=0",
+                                 color='black',
+                                 mutation_scale=20,
+                                 lw=1))
+
+    ax8.axvline(x=9690, ymin=0, ymax=0.82, color='red', linestyle='--')
+    ymin, ymax = ax8.get_ylim()
+    annotation_y = ymin + (ymax - ymin) * 0.35  # 70% up the y-axis
+    ax8.annotate('   Seed 123:\nAccuracy=9690',
+                 xy=(9690, annotation_y),  # Position the arrow at 9625, 70% of y-axis range
+                 xytext=(9300, annotation_y),  # Position the text slightly to the left
+                 ha='center',
+                 va='center',
+                 fontsize=12,  # Adjust fontsize for better visibility
+                 bbox=dict(boxstyle="round,pad=0.3", edgecolor="w", facecolor="w"),
+                 arrowprops=dict(arrowstyle='->',
+                                 connectionstyle="arc3,rad=0",
+                                 color='black',
+                                 mutation_scale=20,
+                                 lw=1))
+
+    ax3.yaxis.set_major_formatter(ticker.FuncFormatter(lambda y, pos: f'{y / 1000:.0f}k'))
+    ax4.yaxis.set_major_formatter(ticker.FuncFormatter(lambda y, pos: f'{y / 1000:.0f}k'))
+    ax7.yaxis.set_major_formatter(ticker.FuncFormatter(lambda y, pos: f'{y / 1000:.0f}k'))
+
+    for ax in [ax1, ax2, ax3, ax4, ax5, ax6, ax7, ax8]:
+        ax.xaxis.set_major_locator(ticker.MaxNLocator(nbins=5))
+
+    for ax in [ax1, ax5, ax6, ax7]:
+        sns.despine(ax=ax)
+    for ax in [ax2, ax3, ax4, ax8]:
+        ax.spines['left'].set_visible(False)
+        ax.spines['top'].set_visible(False)
+
+    plt.tight_layout()
+    plt.subplots_adjust(hspace=1.25)
+    plt.savefig(os.path.join(figure_path, 'prediction_seeds.pdf'), bbox_inches='tight')
+
+
+def download_and_resample(ticker, start, end):
+    data = yf.download(ticker, start=start, end=end)
+    data = data.resample('D').ffill().dropna()  # Forward fill to handle any missing days
+    return data
+
 
 def plot_further_examples():
-    def download_and_resample(ticker, start, end):
-        data = yf.download(ticker, start=start, end=end)
-        data = data.resample('D').ffill().dropna()  # Forward fill to handle any missing days
-        return data
-
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6.5))
+    colors = ['#001c54', '#E89818', '#8b0000']
     usuk_data = download_and_resample('USDGBP=X', start="2022-10-01", end="2024-06-30")
     rw_usuk_path = os.path.join(os.getcwd(), '..', 'data', 'random_walk', 'random_walks_usuk.zip')
     random_walks_usuk = pd.read_csv(rw_usuk_path, header=None, compression='zip')
@@ -48,10 +353,8 @@ def plot_further_examples():
         return rw_data
 
     random_walks_usuk = adjust_index(usuk_data, random_walks_usuk)
-    colors = ['#002d87', '#E89818', '#8b0000']
+    colors = ['#001c54', '#E89818', '#8b0000']
     fill_color = (255 / 255, 223 / 255, 0 / 255, 6 / 255)
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6.5))
-
     usuk_data['Close'].plot(ax=ax1, color=colors[0])
     random_walks_usuk.min(axis=1).plot(ax=ax1, color=colors[1], alpha=0.8, linestyle='--')
     random_walks_usuk.median(axis=1).plot(ax=ax1, color='k', alpha=0.8, linestyle='--')
@@ -71,14 +374,13 @@ def plot_further_examples():
         Line2D([0], [0], color='k', linestyle='--', alpha=0.5, linewidth=0.75,
                label=r'95th Percentile', lw=2),
         Patch(facecolor=fill_color, edgecolor=(0, 0, 0, 1),
-              label=r'Variance')
+              label=r'Range')
     ]
     ax1.legend(handles=legend_elements, loc='lower left', frameon=True,
-              fontsize=10, framealpha=1, facecolor='w',
-              edgecolor=(0, 0, 0, 1), ncols=2
-              )
+               fontsize=10, framealpha=1, facecolor='w',
+               edgecolor=(0, 0, 0, 1), ncols=2
+               )
     ax1.set_xlabel('')
-
 
     ax1.grid(which="major", linestyle='--', alpha=0.225)
     ax1.set_title('a.', loc='left', fontsize=22, y=1.01)
@@ -87,14 +389,14 @@ def plot_further_examples():
     ax1.fill_between(random_walks_usuk.index,
                      random_walks_usuk.min(axis=1),
                      random_walks_usuk.max(axis=1),
-                     color=fill_color)
-
+                     color=fill_color
+                     )
     ax1.yaxis.set_major_formatter(ticker.FuncFormatter(lambda y, pos: f'${y / 1:.2f}'))
     ax1.set_ylabel('US ($) / GBP (£)', fontsize=14)
-
     inset_ax = inset_axes(ax1, width="40%", height="25%", loc='upper left', borderpad=2)
     sns.histplot(random_walks_usuk.iloc[-1], ax=inset_ax,
-                 color=colors[0], bins=12, legend=False, alpha=0.9,
+                 color=colors[0], bins=12,
+                 legend=False, alpha=0.9,
                  common_norm=False)
     inset_ax.set_xlabel('US ($) / GBP (£)')
     inset_ax.set_ylabel('Frequency')
@@ -106,6 +408,7 @@ def plot_further_examples():
     print('The minimum USUK RW forecast is:', random_walks_usuk.min(axis=1).iloc[-1])
     print('The maximum USUK RW forecast is:', random_walks_usuk.max(axis=1).iloc[-1])
     print('The median RW forecast is:', random_walks_usuk.median(axis=1).iloc[-1])
+
     df = pd.read_csv(os.path.join(os.getcwd(),
                                   '..',
                                   'data',
@@ -118,7 +421,7 @@ def plot_further_examples():
                                    'schelling',
                                    'schelling_summary.csv'),
                       index_col=0
-                     )
+                      )
     df = df[df['Step'] != 'Convergence']
     df['Step'] = df['Step'].astype(int)
     df['Happy Count'] = df['Happy Count'].astype(float)
@@ -126,11 +429,15 @@ def plot_further_examples():
     df['Step'] = df['Step'].astype(int)
     df['Happy Count Adjusted'] = df['Happy Count Adjusted'].astype(float)
     filtered_df = df[df['Step'] < 25]
-    sns.stripplot(x='Step', y='Happy Count Adjusted',
-                  data=filtered_df,
-                  jitter=0.3, alpha=0.05, edgecolor='k',
-                  linewidth=0.1, ax=ax2,
-                  color=colors[0])
+    sns.boxplot(x='Step',
+                y='Happy Count Adjusted',
+                data=filtered_df,
+                legend=True,
+                linewidth=1,
+                linecolor=colors[0],
+                color=colors[1],
+                ax=ax2,
+                )
     min_happy_count = filtered_df.groupby('Step')['Happy Count Adjusted'].min()
     max_happy_count = filtered_df.groupby('Step')['Happy Count Adjusted'].max()
     ax2.plot(min_happy_count.index,
@@ -153,41 +460,39 @@ def plot_further_examples():
     ax2.set_xticks([0, 4, 9, 14, 19, 24])
     ax2.set_axisbelow(True)
     ax2.grid(which="both", linestyle='--', alpha=0.3)
-    inset_ax = inset_axes(ax2, width="40%", height="25%", loc='lower right', borderpad=2)
-    sns.histplot(df1['Total Steps to Converge'], ax=inset_ax,
+    inset_ax2 = inset_axes(ax2, width="40%", height="25%", loc='lower right', borderpad=2)
+    sns.histplot(df1['Total Steps to Converge'], ax=inset_ax2,
                  color=colors[0], bins=12, legend=False, alpha=0.9,
                  common_norm=False)
-    inset_ax.xaxis.set_label_position('top')
-    inset_ax.xaxis.tick_top()
-    inset_ax.set_xlabel('Total Steps')
-    inset_ax.set_ylabel('Frequency')
-    inset_ax.set_xlim(df1['Total Steps to Converge'].min()-2,
-                      df1['Total Steps to Converge'].max())
-    inset_ax.set_axisbelow(True)
-    inset_ax.grid(which="both", linestyle='--', alpha=0.3)
-    inset_ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda y, pos: f'{y / 1000:.0f}k'))
+    inset_ax2.xaxis.set_label_position('top')
+    inset_ax2.xaxis.tick_top()
+    inset_ax2.set_xlabel('Total Steps')
+    inset_ax2.set_ylabel('Frequency')
+    inset_ax2.set_xlim(df1['Total Steps to Converge'].min() - 2,
+                       df1['Total Steps to Converge'].max())
+    inset_ax2.set_axisbelow(True)
+    inset_ax2.grid(which="both", linestyle='--', alpha=0.3)
+    inset_ax2.yaxis.set_major_formatter(ticker.FuncFormatter(lambda y, pos: f'{y / 1000:.0f}k'))
     ax2.tick_params(width=0.75, length=6.5, axis='both', which='major', labelsize=11)
     legend_elements2 = [
         Line2D([0], [0], color=colors[2],
                lw=2, linestyle='--', marker='o',
                markerfacecolor='w', markersize=6,
                label=r'Max', alpha=1),
-       Line2D([0], [0], color=colors[1], lw=2,
-              linestyle='-', marker='o',
-              markerfacecolor='w', markersize=6,
-              label=r'Min', alpha=1),
-       Line2D([0], [0], color=(0, 45/255, 135/255, 0.5),
-              linewidth=0,
-              marker='o', markeredgewidth=0.5,
-              markeredgecolor=(0, 0, 0, 1), markersize=6,
-              label=r'Count')]
+        Line2D([0], [0], color=colors[1], lw=2,
+               linestyle='-', marker='o',
+               markerfacecolor='w', markersize=6,
+               label=r'Min', alpha=1),
+    ]
     ax2.legend(handles=legend_elements2, loc='upper right',
-              frameon=True,
-              fontsize=10, framealpha=1, facecolor='w',
-              edgecolor=(0, 0, 0, 1), ncols=1)
+               frameon=True,
+               fontsize=10, framealpha=1, facecolor='w',
+               edgecolor=(0, 0, 0, 1), ncols=1)
     print(df1['Total Steps to Converge'].min(), df1['Total Steps to Converge'].max())
     fig.subplots_adjust(wspace=0.25)
     filename = 'rw_and_schelling'
+    sns.despine(ax=ax1)
+    sns.despine(ax=ax2)
     plt.savefig(os.path.join(os.getcwd(), '..', 'figures', filename + '.pdf'),
                 bbox_inches='tight')
     plt.savefig(os.path.join(os.getcwd(), '..', 'figures', filename + '.svg'),
@@ -1316,118 +1621,6 @@ def buffons_plotter(figure_path):
                 bbox_inches='tight')
 
 
-def plot_three_predictions(first_wave_10k_stratified_list, figure_path):
-    fig, ((ax1, ax2, ax3)) = plt.subplots(1, 3, figsize=(14, 6.5))
-    colors = ['#001c54', '#E89818']
-    housing = pd.read_csv(os.path.join(os.getcwd(),
-                                       '..',
-                                       'data',
-                                       'housing',
-                                       'results',
-                                       'r2.csv'),
-                          index_col=0)
-    housing = housing.reset_index()
-    mnist = pd.read_csv(os.path.join(os.path.join(os.getcwd(),
-                                                  '..',
-                                                  'data',
-                                                  'MNIST',
-                                                  'results',
-                                                  'mnist_results.csv')))
-    print('Covid min: ', np.min(first_wave_10k_stratified_list))
-    print('Covid max: ', np.max(first_wave_10k_stratified_list))
-    print('Covid mean: ', np.mean(first_wave_10k_stratified_list))
-    print('Housing min: ', housing['r2'].min())
-    print('Housing max: ', housing['r2'].max())
-    print('Housing mean: ', housing['r2'].mean())
-    print('MNIST min: ', mnist['correct'].min())
-    print('MNIST max: ', mnist['correct'].max())
-    print('MNIST mean: ', mnist['correct'].mean())
-    nbins = 18
-    letter_fontsize = 24
-    label_fontsize = 18
-    mpl.rcParams['font.family'] = 'Helvetica'
-    csfont = {'fontname': 'Helvetica'}
-    sns.histplot(first_wave_10k_stratified_list, edgecolor='k',
-                 color = colors[0], alpha=0.7, stat='density',
-                 ax=ax1, bins=nbins)
-    sns.kdeplot(first_wave_10k_stratified_list, color=colors[1], ax=ax1, common_norm=True)
-
-    sns.histplot(housing['r2'], edgecolor='k',
-                 color = colors[1], alpha=0.7, stat='density',
-                 ax=ax2, bins=nbins)
-    sns.kdeplot(housing['r2'], color=colors[0], ax=ax2, common_norm=True)
-
-    sns.histplot(mnist['correct'], edgecolor='k',
-                 color = colors[0], alpha=0.7, stat='density',
-                 ax=ax3, bins=nbins)
-    sns.kdeplot(mnist['correct'], color=colors[1], ax=ax3, common_norm=True)
-    ax1.set_ylabel('Density', fontsize=label_fontsize + 2)
-    ax2.set_ylabel('')
-    ax3.set_ylabel('')
-    ax1.set_xlabel('ROC-AUC', fontsize=16)
-    ax2.set_xlabel('R$^2$', fontsize=16)
-    ax3.set_xlabel('Accuracy', fontsize=16)
-    ax1.set_title('a.', loc='left', fontsize=18, y=1.015, x=-0.075)
-    ax2.set_title('b.', loc='left', fontsize=18, y=1.015, x=-0.075)
-    ax3.set_title('c.', loc='left', fontsize=18, y=1.015, x=-0.075)
-    legend_elements1 = [Patch(facecolor=colors[0], edgecolor='k',
-                              label=r'Bins', alpha=0.7),
-                        Line2D([0], [0], color=colors[1], lw=1, linestyle='-',
-                               label=r'KDE', alpha=0.7), ]
-    legend_elements2 = [Patch(facecolor=colors[1], edgecolor='k',
-                              label=r'Bins', alpha=0.7),
-                        Line2D([0], [0], color=colors[0], lw=1, linestyle='-',
-                               label=r'KDE', alpha=0.7), ]
-    ax1.legend(handles=legend_elements1, loc='center left', frameon=True,
-               fontsize=label_fontsize - 2, framealpha=1, facecolor='w',
-               edgecolor=(0, 0, 0, 1)
-               )
-    ax2.legend(handles=legend_elements2, loc='center left', frameon=True,
-               fontsize=label_fontsize - 2, framealpha=1, facecolor='w',
-               edgecolor=(0, 0, 0, 1)
-               )
-    ax3.legend(handles=legend_elements1, loc='center left', frameon=True,
-               fontsize=label_fontsize - 2, framealpha=1, facecolor='w',
-               edgecolor=(0, 0, 0, 1)
-               )
-    for ax in [ax1, ax2, ax3]:
-        ax.tick_params(axis='both', which='major', labelsize=16)
-        ax.set_ylim(ax.get_ylim()[0], ax.get_ylim()[1] + ax.get_ylim()[1] / 7)
-    mean = round(np.nanmean(first_wave_10k_stratified_list), 3)
-    var = round(np.nanstd(first_wave_10k_stratified_list), 3)
-    ax1.annotate(r'E(AUC) = ' + str(mean) + r', $\sigma$(AUC) = ' + str(var),
-                 xy=(0.5, 0.875), xytext=(0.5, 0.925), xycoords='axes fraction',
-                 fontsize=13, ha='center', va='bottom',
-                 bbox=dict(boxstyle='round,pad=0.35', fc='white'),
-                 arrowprops=dict(arrowstyle='-[, widthB=9.0, lengthB=1',
-                                 lw=1.0))
-    mean = round(np.nanmean(housing['r2']), 3)
-    var = round(np.nanstd(housing['r2']), 3)
-    ax2.annotate(r'E(R$^2$) = ' + str(mean) + r', $\sigma$(R$^2$) = ' + str(var),
-                 xy=(0.5, 0.875), xytext=(0.5, 0.925), xycoords='axes fraction',
-                 fontsize=13, ha='center', va='bottom',
-                 bbox=dict(boxstyle='round,pad=0.35', fc='white'),
-                 arrowprops=dict(arrowstyle='-[, widthB=9.0, lengthB=1',
-                                 lw=1.0))
-    mean = round(np.nanmean(mnist['correct']), 3)
-    var = round(np.nanstd(mnist['correct']), 3)
-    ax3.annotate(r'E(acc) = ' + str(mean) + r', $\sigma$(acc) = ' + str(var),
-                 xy=(0.5, 0.875), xytext=(0.5, 0.925), xycoords='axes fraction',
-                 fontsize=13, ha='center', va='bottom',
-                 bbox=dict(boxstyle='round,pad=0.35', fc='white'),
-                 arrowprops=dict(arrowstyle='-[, widthB=9.0, lengthB=1',
-                                 lw=1.0))
-    ax1.set_axisbelow(True)
-    ax2.set_axisbelow(True)
-    ax3.set_axisbelow(True)
-    ax1.grid(which="both", linestyle='--', alpha=0.225)
-    ax2.grid(which="both", linestyle='--', alpha=0.225)
-    ax3.grid(which="both", linestyle='--', alpha=0.225)
-    sns.despine()
-    plt.tight_layout()
-    plt.savefig(os.path.join(figure_path, 'prediction_seeds.pdf'), bbox_inches='tight')
-
-
 def make_ffc_just_gpa(ffc, figure_path):
     fig = plt.figure(figsize=(8, 8))
     figurez = []
@@ -1635,111 +1828,138 @@ def plot_topic_jointplot():
     plt.savefig(os.path.join(figure_path, 'topic_modelling_seeds_jointplot_2.pdf'), bbox_inches='tight')
     plt.show()
 
-def plot_topics_barplot(figure_path):
 
-    science = pd.read_csv(os.path.join(os.getcwd(),
-                                       '..',
-                                       'data',
-                                       'bibliometric',
-                                       'meta_data',
+def plot_topics_barplot(figure_path):
+    #
+    metapath = os.path.join(os.getcwd(),
+                            '..',
+                            'data',
+                            'bibliometric',
+                            'meta_data'
+                            )
+    science = pd.read_csv(os.path.join(metapath,
                                        'metadata_science.csv')
                           )
-    ###################################
-    ## This needs to be uncommented  ##
-    ###################################
-    pnas = science
-    # pnas = pd.read_csv(os.path.join(os.getcwd(),
-    #                     '..',
-    #                     'data',
-    #                     'bibliometric',
-    #                     'meta_data',
-    #                     'metadata_pnas.csv')
-    #                    )
-    nejm = pd.read_csv(os.path.join(os.getcwd(),
-                                    '..',
-                                    'data',
-                                    'bibliometric',
-                                    'meta_data',
+    pnas = pd.read_csv(os.path.join(metapath,
+                                    'metadata_pnas.csv')
+                       )
+    nejm = pd.read_csv(os.path.join(metapath,
                                     'metadata_nejm.csv')
                        )
-    ###################################
-    ## This needs to be uncommented  ##
-    ###################################
-    nature = nejm
-    # nature = pd.read_csv(os.path.join(os.getcwd(),
-    #                     '..',
-    #                     'data',
-    ##                     'bibliometric',
-    #                     'meta_data',
-    #                     'metadata_nature.csv')
-    #                    )
-    fig, ((ax1, ax2),
-          (ax3, ax4)
-          ) = plt.subplots(2, 2, figsize=(14, 8))
+    nature = pd.read_csv(os.path.join(metapath,
+                                      'metadata_nature.csv'
+                                      )
+                         )
+
+    shape = pd.read_csv(os.path.join(metapath,
+                                     'metadata_shape.csv'
+                                     )
+                        )
+
+    popstudies = pd.read_csv(os.path.join(metapath,
+                                          'metadata_popstudies.csv'
+                                          )
+                             )
+    fig, ((ax1, ax2, ax3),
+          (ax4, ax5, ax6)
+          ) = plt.subplots(2, 3, figsize=(14, 8))
     colors = ['#001c54', '#E89818']
     nbins = 25
-    sns.histplot(science['topics_count'],
+    sns.histplot(science[science['random_state'] != 77]['topics_count'],
                  ax=ax1,
                  color=colors[0],
                  bins=nbins)
     ax1_twin = ax1.twinx()
-    sns.kdeplot(science['topics_count'], ax=ax1_twin, color=colors[1])
-    sns.histplot(nejm['topics_count'],
+    sns.kdeplot(science[science['random_state'] != 77]['topics_count'], ax=ax1_twin, color=colors[1])
+
+    sns.histplot(nejm[nejm['random_state'] != 77]['topics_count'],
                  ax=ax2,
                  color=colors[0],
                  bins=nbins)
     ax2_twin = ax2.twinx()
-    sns.kdeplot(nejm['topics_count'], ax=ax2_twin, color=colors[1])
-    sns.histplot(pnas['topics_count'],
+    sns.kdeplot(nejm[nejm['random_state'] != 77]['topics_count'], ax=ax2_twin, color=colors[1])
+
+    sns.histplot(pnas[pnas['random_state'] != 77]['topics_count'],
                  ax=ax3,
                  color=colors[0],
                  bins=nbins)
     ax3_twin = ax3.twinx()
-    sns.kdeplot(pnas['topics_count'], ax=ax3_twin, color=colors[1])
-    sns.histplot(nature['topics_count'],
+    sns.kdeplot(pnas[pnas['random_state'] != 77]['topics_count'], ax=ax3_twin, color=colors[1])
+
+    sns.histplot(nature[nature['random_state'] != 77]['topics_count'],
                  ax=ax4,
                  color=colors[0],
                  bins=nbins)
     ax4_twin = ax4.twinx()
-    sns.kdeplot(nature['topics_count'], ax=ax4_twin, color=colors[1])
+    sns.kdeplot(nature[nature['random_state'] != 77]['topics_count'], ax=ax4_twin, color=colors[1])
+
+    sns.histplot(shape[shape['random_state'] != 77]['topics_count'],
+                 ax=ax5,
+                 color=colors[0],
+                 bins=nbins)
+    ax5_twin = ax5.twinx()
+    sns.kdeplot(shape[shape['random_state'] != 77]['topics_count'],
+                ax=ax5_twin, color=colors[1])
+
+    sns.histplot(popstudies[popstudies['random_state'] != 77]['topics_count'],
+                 ax=ax6,
+                 color=colors[0],
+                 bins=nbins)
+    ax6_twin = ax6.twinx()
+    sns.kdeplot(popstudies[popstudies['random_state'] != 77]['topics_count'],
+                ax=ax6_twin, color=colors[1])
+
     ax1.set_title('a.', loc='left', fontsize=23)
     ax2.set_title('b.', loc='left', fontsize=23)
     ax3.set_title('c.', loc='left', fontsize=22)
     ax4.set_title('d.', loc='left', fontsize=22)
-    ax1.set_xlim(0, 400)
-    ax2.set_xlim(0, 160)
-    ax3.set_xlim(0, ax3.get_xlim()[1])
-    ax4.set_xlim(0, ax4.get_xlim()[1])
+    # ax1.set_xlim(0, 400)
+    # ax2.set_xlim(0, 160)
+    # ax3.set_xlim(0, ax3.get_xlim()[1])
+    # ax4.set_xlim(0, ax4.get_xlim()[1])
     ax1.grid(which="both", linestyle='--', alpha=0.225)
     ax2.grid(which="both", linestyle='--', alpha=0.225)
     ax3.grid(which="both", linestyle='--', alpha=0.225)
     ax4.grid(which="both", linestyle='--', alpha=0.225)
+    ax5.grid(which="both", linestyle='--', alpha=0.225)
+    ax6.grid(which="both", linestyle='--', alpha=0.225)
     ax1.set_axisbelow(True)
     ax2.set_axisbelow(True)
     ax3.set_axisbelow(True)
     ax4.set_axisbelow(True)
+    ax5.set_axisbelow(True)
+    ax6.set_axisbelow(True)
+
     legend_elements1 = [
         Patch(facecolor=colors[0], edgecolor=(0, 0, 0, 1),
               label=r'Histogram'),
         Line2D([0], [0], color=colors[1], lw=2, linestyle='-',
                label=r'Kernel Density', alpha=0.7)
     ]
-    ax1.legend(handles=legend_elements1, loc='upper right', frameon=True,
+    #    ax1.legend(handles=legend_elements1, loc='upper right', frameon=True,
+    #               fontsize=10, framealpha=1, facecolor='w',
+    #               edgecolor=(0, 0, 0, 1), ncols=1, title='Science'
+    #               )
+    #    ax2.legend(handles=legend_elements1, loc='upper right', frameon=True,
+    #               fontsize=10, framealpha=1, facecolor='w',
+    #               edgecolor=(0, 0, 0, 1), ncols=1, title='New England Journal Of Medicine'
+    #               )
+    ax3.legend(handles=legend_elements1, loc='center right', frameon=True,
                fontsize=12, framealpha=1, facecolor='w',
-               edgecolor=(0, 0, 0, 1), ncols=1, title='Science'
+               edgecolor=(0, 0, 0, 1), ncols=1,  # title='PNAS'
                )
-    ax2.legend(handles=legend_elements1, loc='upper left', frameon=True,
-               fontsize=12, framealpha=1, facecolor='w',
-               edgecolor=(0, 0, 0, 1), ncols=1, title='New England Journal\n       Of Medicine'
-               )
-    ax3.legend(handles=legend_elements1, loc='upper right', frameon=True,
-               fontsize=12, framealpha=1, facecolor='w',
-               edgecolor=(0, 0, 0, 1), ncols=1, title='PNAS'
-               )
-    ax4.legend(handles=legend_elements1, loc='upper left', frameon=True,
-               fontsize=12, framealpha=1, facecolor='w',
-               edgecolor=(0, 0, 0, 1), ncols=1, title='Nature'
-               )
+    #    ax4.legend(handles=legend_elements1, loc='upper right', frameon=True,
+    #               fontsize=10, framealpha=1, facecolor='w',
+    #               edgecolor=(0, 0, 0, 1), ncols=1, title='Nature'
+    #               )
+    #
+    #    ax5.legend(handles=legend_elements1, loc='upper right', frameon=True,
+    #               fontsize=10, framealpha=1, facecolor='w',
+    #               edgecolor=(0, 0, 0, 1), ncols=1, title='SHAPE'
+    #               )
+
+    for ax in [ax1, ax2, ax3, ax4, ax5, ax6]:
+        ax.set_xlim(0, None)
 
     print(f"Science mean number of topics: {science['topics_count'].mean()}")
     print(f"Science min number of topics: {science['topics_count'].min()}")
@@ -1753,36 +1973,209 @@ def plot_topics_barplot(figure_path):
     print(f"Nature mean number of topics: {nejm['topics_count'].mean()}")
     print(f"Nature min number of topics: {nejm['topics_count'].min()}")
     print(f"Nature max number of topics: {nejm['topics_count'].max()}")
+    print(f"SHAPE mean number of topics: {shape['topics_count'].mean()}")
+    print(f"SHAPE min number of topics: {shape['topics_count'].min()}")
+    print(f"SHAPE max number of topics: {shape['topics_count'].max()}")
+    print(f"Population Studies mean number of topics: {popstudies['topics_count'].mean()}")
+    print(f"Population Studies min number of topics: {popstudies['topics_count'].min()}")
+    print(f"Population Studies max number of topics: {popstudies['topics_count'].max()}")
 
-    ax3.text(0.5, 0.5, 'PNAS Placeholder', transform=ax3.transAxes,
-             fontsize=40, color='red',
-             #         alpha=0.5,
-             ha='center', va='center', rotation=30)
-    ax4.text(0.5, 0.5, 'Nature Placeholder', transform=ax4.transAxes,
-             fontsize=40, color='red',
-             #         alpha=0.5,
-             ha='center', va='center', rotation=30)
-    for ax in [ax1, ax2, ax3, ax4]:
-        ax.set_ylabel('Count', fontsize=16)
-        ax.set_xlabel('Number of topics', fontsize=16)
-    ax1_twin.set_ylabel('Density', fontsize=16)
-    ax2_twin.set_ylabel('Density', fontsize=16)
-    ax3_twin.set_ylabel('Density', fontsize=16)
-    ax4_twin.set_ylabel('Density', fontsize=16)
-    plt.tight_layout()
+    ax1.set_ylabel('Count: Science', fontsize=14)
+    ax2.set_ylabel('Count: NEJM', fontsize=14)
+    ax3.set_ylabel('Count: PNAS', fontsize=14)
+    ax4.set_ylabel('Count: Nature', fontsize=14)
+    ax5.set_ylabel('Count: SHAPE', fontsize=14)
+    ax6.set_ylabel('Count: Population Studies', fontsize=14)
+    for ax_twin in [ax1_twin, ax2_twin, ax3_twin, ax4_twin, ax5_twin, ax6_twin]:
+        ax_twin.set_yticks([])  # Removes right y-axis tick labels
+        ax_twin.tick_params(right=False)
+
+        # for ax in [ax1, ax2, ax3, ax4, ax5, ax6]:
+    # ax.set_xlim(0, ax.get_xlim()[1])
+    ax1.set_xlabel('', fontsize=16)
+    ax2.set_xlabel('', fontsize=16)
+    ax3.set_xlabel('', fontsize=16)
+    ax4.set_xlabel('Number of topics', fontsize=16)
+    ax5.set_xlabel('Number of topics', fontsize=16)
+    ax6.set_xlabel('Number of topics', fontsize=16)
+    ax1_twin.set_ylabel('', fontsize=16)
+    ax2_twin.set_ylabel('', fontsize=16)
+    ax3_twin.set_ylabel('', fontsize=16)
+    ax4_twin.set_ylabel('', fontsize=16)
+    ax5_twin.set_ylabel('', fontsize=16)
+    ax6_twin.set_ylabel('', fontsize=16)
+
+    # @TODO: this can be modularised when less lazy
+
+    n_topics77 = science[science['random_state'] == 77]['topics_count'][999]
+    ymin, ymax = ax1.get_ylim()
+    ax1.axvline(x=n_topics77,
+                ymin=0,
+                ymax=1,
+                color='red',
+                linestyle='--')
+    annotation_y = ymin + (ymax - ymin) * 0.8  # 70% up the y-axis
+    ax1.annotate('   Seed 77:\n  Topics = ' + str(n_topics77),
+                 xy=(n_topics77,
+                     annotation_y),
+                 xytext=(n_topics77 + 450,
+                         annotation_y),
+                 ha='center',
+                 va='center',
+                 fontsize=12,  # Adjust fontsize for better visibility
+                 bbox=dict(boxstyle="round,pad=0.3", edgecolor="w", facecolor="w"),
+                 arrowprops=dict(arrowstyle='->',
+                                 connectionstyle="arc3,rad=0",
+                                 color='black',
+                                 mutation_scale=20,
+                                 lw=1))
+
+    n_topics77 = nejm[nejm['random_state'] == 77]['topics_count'][1000]
+    ymin, ymax = ax2.get_ylim()
+    ax2.axvline(x=n_topics77,
+                ymin=0,
+                ymax=1,
+                color='red',
+                linestyle='--')
+    annotation_y = ymin + (ymax - ymin) * 0.8  # 70% up the y-axis
+    ax2.annotate('   Seed 77:\n  Topics = ' + str(n_topics77),
+                 xy=(n_topics77,
+                     annotation_y),
+                 xytext=(n_topics77 - 100,
+                         annotation_y),
+                 ha='center',
+                 va='center',
+                 fontsize=12,  # Adjust fontsize for better visibility
+                 bbox=dict(boxstyle="round,pad=0.3", edgecolor="w", facecolor="w"),
+                 arrowprops=dict(arrowstyle='->',
+                                 connectionstyle="arc3,rad=0",
+                                 color='black',
+                                 mutation_scale=20,
+                                 lw=1)
+                 )
+    n_topics77 = pnas[pnas['random_state'] == 77]['topics_count'][1000]
+    ymin, ymax = ax3.get_ylim()
+    ax3.axvline(x=n_topics77,
+                ymin=0,
+                ymax=1,
+                color='red',
+                linestyle='--')
+    annotation_y = ymin + (ymax - ymin) * 0.8  # 70% up the y-axis
+    ax3.annotate('   Seed 77:\n  Topics = ' + str(n_topics77),
+                 xy=(n_topics77,
+                     annotation_y),
+                 xytext=(n_topics77 + 500,
+                         annotation_y),
+                 ha='center',
+                 va='center',
+                 fontsize=12,  # Adjust fontsize for better visibility
+                 bbox=dict(boxstyle="round,pad=0.3", edgecolor="w", facecolor="w"),
+                 arrowprops=dict(arrowstyle='->',
+                                 connectionstyle="arc3,rad=0",
+                                 color='black',
+                                 mutation_scale=20,
+                                 lw=1))
+
+    n_topics77 = nature[nature['random_state'] == 77]['topics_count'][1000]
+    ymin, ymax = ax4.get_ylim()
+    ax4.axvline(x=n_topics77,
+                ymin=0,
+                ymax=1,
+                color='red',
+                linestyle='--')
+    annotation_y = ymin + (ymax - ymin) * 0.8  # 70% up the y-axis
+    ax4.annotate('   Seed 77:\n  Topics = ' + str(n_topics77),
+                 xy=(n_topics77,
+                     annotation_y),
+                 xytext=(n_topics77 + 1000,
+                         annotation_y),
+                 ha='center',
+                 va='center',
+                 fontsize=12,  # Adjust fontsize for better visibility
+                 bbox=dict(boxstyle="round,pad=0.3", edgecolor="w", facecolor="w"),
+                 arrowprops=dict(arrowstyle='->',
+                                 connectionstyle="arc3,rad=0",
+                                 color='black',
+                                 mutation_scale=20,
+                                 lw=1))
+    n_topics77 = shape[shape['random_state'] == 77]['topics_count'][1000]
+    ymin, ymax = ax5.get_ylim()
+    ax5.axvline(x=n_topics77,
+                ymin=0,
+                ymax=1,
+                color='red',
+                linestyle='--')
+    annotation_y = ymin + (ymax - ymin) * 0.8  # 70% up the y-axis
+    ax5.annotate('   Seed 77:\n  Topics = ' + str(n_topics77),
+                 xy=(n_topics77,
+                     annotation_y),
+                 xytext=(n_topics77 - 45,
+                         annotation_y),
+                 ha='center',
+                 va='center',
+                 fontsize=12,  # Adjust fontsize for better visibility
+                 bbox=dict(boxstyle="round,pad=0.3", edgecolor="w", facecolor="w"),
+                 arrowprops=dict(arrowstyle='->',
+                                 connectionstyle="arc3,rad=0",
+                                 color='black',
+                                 mutation_scale=20,
+                                 lw=1))
+
+    n_topics77 = popstudies[popstudies['random_state'] == 77]['topics_count'][1000]
+    ymin, ymax = ax6.get_ylim()
+    ax6.axvline(x=n_topics77,
+                ymin=0,
+                ymax=1,
+                color='red',
+                linestyle='--')
+    annotation_y = ymin + (ymax - ymin) * 0.8  # 70% up the y-axis
+    ax6.annotate('   Seed 77:\n  Topics = ' + str(n_topics77),
+                 xy=(n_topics77,
+                     annotation_y),
+                 xytext=(n_topics77 - 15,
+                         annotation_y),
+                 ha='center',
+                 va='center',
+                 fontsize=12,  # Adjust fontsize for better visibility
+                 bbox=dict(boxstyle="round,pad=0.3", edgecolor="w", facecolor="w"),
+                 arrowprops=dict(arrowstyle='->',
+                                 connectionstyle="arc3,rad=0",
+                                 color='black',
+                                 mutation_scale=20,
+                                 lw=1))
+
     plt.savefig(os.path.join(figure_path,
                              'topic_modelling_seeds_histplot.pdf'),
                 bbox_inches='tight')
+    plt.tight_layout()
+    sns.despine()
+
 
 def load_scientometrics():
-    df_rng = pd.read_csv('../data/openalex_returns/openalex_rn_papers.csv')
-    df_qrng = pd.read_csv('../data/openalex_returns/openalex_rn_and_quantum_papers.csv')
-    df_hrng = pd.read_csv('../data/openalex_returns/openalex_rn_and_hardware_papers.csv')
-    df_prng = pd.read_csv('../data/openalex_returns/openalex_rn_and_pseudo_papers.csv')
-    df_quarng = pd.read_csv('../data/openalex_returns/openalex_rn_and_quasi_papers.csv')
-    df_yr = pd.read_csv('../data/openalex_returns/openalex_year_counts.csv')
-    df_yr_dom = pd.read_csv('../data/openalex_returns/openalex_domain_year_counts.csv')
-    df_dom = pd.read_csv('../data/openalex_returns/openalex_domain_counts.csv')
+    df_rng = pd.read_csv(os.path.join(os.getcwd(), '..' , 'data', 'openalex_returns',
+                                      'openalex_rn_papers.zip'),
+                         compression='zip')
+    df_qrng = pd.read_csv(os.path.join(os.getcwd(), '..' , 'data', 'openalex_returns',
+                                       'openalex_rn_and_quantum_papers.zip'),
+                          compression='zip')
+    df_hrng = pd.read_csv(os.path.join(os.getcwd(), '..' , 'data', 'openalex_returns',
+                                       'openalex_rn_and_hardware_papers.zip'),
+                          compression='zip')
+    df_prng = pd.read_csv(os.path.join(os.getcwd(), '..' , 'data', 'openalex_returns',
+                                       'openalex_rn_and_pseudo_papers.zip'),
+                          compression='zip')
+    df_quarng = pd.read_csv(os.path.join(os.getcwd(), '..' , 'data', 'openalex_returns',
+                                         'openalex_rn_and_quasi_papers.zip'),
+                            compression='zip')
+    df_yr = pd.read_csv(os.path.join(os.getcwd(), '..' , 'data', 'openalex_returns',
+                                     'openalex_year_counts.zip'),
+                        compression='zip')
+    df_yr_dom = pd.read_csv(os.path.join(os.getcwd(), '..' , 'data', 'openalex_returns',
+                                         'openalex_domain_year_counts.zip'),
+                            compression='zip')
+    df_dom = pd.read_csv(os.path.join(os.getcwd(), '..' , 'data', 'openalex_returns',
+                                      'openalex_domain_counts.zip'),
+                         compression='zip')
     df_dom['domain'] = df_dom['domain'].astype(str)
     return df_rng, df_hrng, df_qrng, df_prng, df_quarng, df_yr, df_yr_dom, df_dom
 
@@ -1837,10 +2230,14 @@ def make_table(df_rng, df_hrng, df_qrng, df_prng, df_quarng, column):
     df_merged = df_merged.rename({'count': '"Random Numbers" and "Pseudo"'}, axis=1)
     df_merged = pd.merge(df_merged, df_quarng_val, left_index=True, right_index=True, how='left')
     df_merged = df_merged.rename({'count': '"Random Numbers" and "Quasi"'}, axis=1)
+
+    for col in df_merged.columns:
+        if df_merged[col].isnull().sum() == 0:
+            df_merged[col] = df_merged[col].astype(int)
     return df_merged
 
 
-def make_scientometric_ts(df_rng, df_hrng, df_qrng, df_prng, df_quarng, df_yr):
+def make_scientometric_ts(df_rng, df_hrng, df_qrng, df_prng, df_quarng, df_yr, domain_df):
     df_yr = df_yr.rename({'count': 'total_count'}, axis=1)
     df_yr_rng = pd.DataFrame(df_rng['publication_year'].value_counts())
     df_yr_rng = df_yr_rng.reset_index()
