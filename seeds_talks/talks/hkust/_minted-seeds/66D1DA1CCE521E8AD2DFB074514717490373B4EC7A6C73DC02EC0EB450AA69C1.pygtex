@@ -1,0 +1,13 @@
+\begin{Verbatim}[commandchars=\\\{\}]
+
+\PYG{k}{def} \PYG{n+nf}{analytical\PYGZus{}function}\PYG{p}{(}\PYG{n}{inputs}\PYG{p}{,} \PYG{n}{seed}\PYG{p}{):}
+	\PYG{n}{Do} \PYG{n}{stuff}
+
+\PYG{n}{results} \PYG{o}{=} \PYG{p}{[]}
+	\PYG{n}{inputs} \PYG{o}{=} \PYG{n}{x}
+
+\PYG{k}{for} \PYG{n}{seed} \PYG{o+ow}{in} \PYG{n+nb}{range}\PYG{p}{(}\PYG{l+m+mi}{0}\PYG{p}{,} \PYG{l+m+mi}{10000}\PYG{p}{):}
+	\PYG{n}{results}\PYG{o}{.}\PYG{n}{append}\PYG{p}{(}\PYG{n}{analytical\PYGZus{}function}\PYG{p}{(}\PYG{n}{inputs}\PYG{p}{,} \PYG{n}{seed}\PYG{p}{))}
+
+\PYG{n}{plot}\PYG{p}{(}\PYG{n}{results}\PYG{p}{)}
+\end{Verbatim}

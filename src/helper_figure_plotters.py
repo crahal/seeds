@@ -17,6 +17,378 @@ from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from matplotlib.ticker import FuncFormatter
 
 
+
+def plot_schelling_examples(colors = ['#001c54', '#E89818', '#8b0000']):
+    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(16, 10))
+
+
+    df = pd.read_csv(os.path.join(os.getcwd(),
+                                  '..',
+                                  'data',
+                                  'schelling',
+                                  'schelling_df_25_0.3_0.3.csv'),
+                     index_col=0)
+
+    df1 = df[df['Step'] == 'Convergence']
+    df = df[df['Step'] != 'Convergence']
+    df['Step'] = df['Step'].astype(int)
+    df['Happy Count'] = df['Happy Count'].astype(float)
+    df['Happy Count Adjusted'] = df.groupby('Step')['Happy Count'].transform(lambda x: x - x.mean())
+    df['Step'] = df['Step'].astype(int)
+    df['Happy Count Adjusted'] = df['Happy Count Adjusted'].astype(float)
+    filtered_df = df[df['Step'] < 25]
+    sns.boxplot(x='Step',
+                y='Happy Count Adjusted',
+                data=filtered_df,
+                legend=True,
+                notch=True,
+                linewidth=0.75,
+                linecolor='k',
+                color=colors[1],
+                ax=ax1,
+                flierprops={'marker': 'o', 'markersize': 7.5, 'markeredgewidth': 0.25, 'markeredgecolor': colors[0]}
+                )
+    min_happy_count = filtered_df.groupby('Step')['Happy Count Adjusted'].min()
+    max_happy_count = filtered_df.groupby('Step')['Happy Count Adjusted'].max()
+    ax1.plot(min_happy_count.index,
+             min_happy_count.values,
+             label='Min',
+             color=colors[1], linewidth=0.75,
+             marker='o',
+             markerfacecolor='w',
+             linestyle='--')
+    ax1.plot(max_happy_count.index,
+             max_happy_count.values,
+             label='Max',
+             color=colors[2], linewidth=0.75,
+             marker='o',
+             markerfacecolor='w',
+             linestyle='--')
+    ax1.set_xlabel('Step', fontsize=13)
+    ax1.set_ylabel('Mean Adjusted Happy Count', fontsize=13)
+    ax1.legend()
+    ax1.set_xticks([0, 4, 9, 14, 19, 24])
+    ax1.set_axisbelow(True)
+    ax1.grid(which="both", linestyle='--', alpha=0.3)
+    inset_ax1 = inset_axes(ax1, width="40%", height="25%", loc='lower right', borderpad=2)
+    sns.histplot(df1['Happy Count'], ax=inset_ax1, linewidth=0.75,
+                 color=colors[0], bins=15, legend=False, alpha=0.9,
+                 common_norm=False)
+    inset_ax1.xaxis.set_label_position('top')
+    inset_ax1.xaxis.tick_top()
+    inset_ax1.set_xlabel('Total Steps', fontsize=8)
+    inset_ax1.set_ylabel('Frequency', fontsize=8)
+    inset_ax1.set_xlim(df1['Happy Count'].min() - 2,
+                       df1['Happy Count'].max())
+    inset_ax1.set_axisbelow(True)
+    #    inset_ax1.grid(which="both", linestyle='--', alpha=0.3)
+    inset_ax1.yaxis.set_major_formatter(ticker.FuncFormatter(lambda y, pos: f'{y / 1000:.0f}k'))
+    inset_ax1.tick_params(axis='both', which='major', labelsize=7)
+    ax1.tick_params(width=0.75, length=6.5, axis='both', which='major', labelsize=11)
+    legend_elements2 = [
+        Line2D([0], [0], color=colors[2],
+               lw=2, linestyle='--', marker='o',
+               markerfacecolor='w', markersize=6,
+               label=r'Max', alpha=1),
+        Line2D([0], [0], color=colors[1],
+               lw=2, linestyle='--', marker='o',
+               markerfacecolor='w', markersize=6,
+               label=r'Max', alpha=1),
+        Line2D([0], [0], color=colors[0], lw=0,
+               linestyle='-', marker='o',
+               markerfacecolor='w', markersize=6,
+               label=r'Outlier', alpha=1)
+    ]
+    ax1.legend(handles=legend_elements2, loc='upper right',
+               frameon=True,
+               fontsize=10, framealpha=1, facecolor='w',
+               edgecolor=(0, 0, 0, 1), ncols=1)
+    print(df1['Happy Count'].min(), df1['Happy Count'].max())
+
+
+
+
+
+    df = pd.read_csv(os.path.join(os.getcwd(),
+                                  '..',
+                                  'data',
+                                  'schelling',
+                                  'schelling_df_25_0.3_0.5.csv'),
+                     index_col=0)
+    df1 = df[df['Step'] == 'Convergence']
+    df = df[df['Step'] != 'Convergence']
+    df['Step'] = df['Step'].astype(int)
+    df['Happy Count'] = df['Happy Count'].astype(float)
+    df['Happy Count Adjusted'] = df.groupby('Step')['Happy Count'].transform(lambda x: x - x.mean())
+    df['Step'] = df['Step'].astype(int)
+    df['Happy Count Adjusted'] = df['Happy Count Adjusted'].astype(float)
+    filtered_df = df[df['Step'] < 25]
+    sns.boxplot(x='Step',
+                y='Happy Count Adjusted',
+                data=filtered_df,
+                legend=True,
+                notch=True,
+                linewidth=0.75,
+                linecolor='k',
+                color=colors[1],
+                ax=ax2,
+                flierprops={'marker': 'o', 'markersize': 7.5, 'markeredgewidth': 0.25, 'markeredgecolor': colors[0]}
+                )
+    min_happy_count = filtered_df.groupby('Step')['Happy Count Adjusted'].min()
+    max_happy_count = filtered_df.groupby('Step')['Happy Count Adjusted'].max()
+    ax2.plot(min_happy_count.index,
+             min_happy_count.values,
+             label='Min',
+             color=colors[1],
+             linewidth=0.75,
+             marker='o',
+             markerfacecolor='w',
+             linestyle='--')
+    ax2.plot(max_happy_count.index,
+             max_happy_count.values,
+             label='Max',
+             color=colors[2], linewidth=0.75,
+             marker='o',
+             markerfacecolor='w',
+             linestyle='--')
+    ax2.set_xlabel('Step', fontsize=13)
+    ax2.set_ylabel('Mean Adjusted Happy Count', fontsize=13)
+    ax2.legend()
+    ax2.set_xticks([0, 4, 9, 14, 19, 24])
+    ax2.set_axisbelow(True)
+    ax2.grid(which="both", linestyle='--', alpha=0.3)
+    inset_ax2 = inset_axes(ax2, width="40%", height="25%", loc='lower right', borderpad=2)
+    sns.histplot(df1['Happy Count'], ax=inset_ax2, linewidth=0.75,
+                 color=colors[0], bins=15, legend=False, alpha=0.9,
+                 common_norm=False)
+    inset_ax2.xaxis.set_label_position('top')
+    inset_ax2.xaxis.tick_top()
+    inset_ax2.set_xlabel('Total Steps', fontsize=8)
+    inset_ax2.set_ylabel('Frequency', fontsize=8)
+    inset_ax2.set_xlim(df1['Happy Count'].min() - 2,
+                       df1['Happy Count'].max())
+    inset_ax2.set_axisbelow(True)
+    #    inset_ax2.grid(which="both", linestyle='--', alpha=0.3)
+    inset_ax2.yaxis.set_major_formatter(ticker.FuncFormatter(lambda y, pos: f'{y / 1000:.0f}k'))
+    inset_ax2.tick_params(axis='both', which='major', labelsize=7)
+    ax2.tick_params(width=0.75, length=6.5, axis='both', which='major', labelsize=11)
+    legend_elements2 = [
+        Line2D([0], [0], color=colors[2],
+               lw=2, linestyle='--', marker='o',
+               markerfacecolor='w', markersize=6,
+               label=r'Max', alpha=1),
+        Line2D([0], [0], color=colors[1], lw=2,
+               linestyle='-', marker='o',
+               markerfacecolor='w', markersize=6,
+               label=r'Min', alpha=1),
+        Line2D([0], [0], color=colors[0], lw=0,
+               linestyle='-', marker='o',
+               markerfacecolor='w', markersize=6,
+               label=r'Outlier', alpha=1)
+    ]
+    ax2.legend(handles=legend_elements2, loc='upper right',
+               frameon=True,
+               fontsize=10, framealpha=1, facecolor='w',
+               edgecolor=(0, 0, 0, 1), ncols=1)
+    print(df1['Happy Count'].min(), df1['Happy Count'].max())
+
+
+
+
+
+
+
+
+    df = pd.read_csv(os.path.join(os.getcwd(),
+                                  '..',
+                                  'data',
+                                  'schelling',
+                                  'schelling_df_25_0.5_0.3.csv'),
+                     index_col=0)
+    df1 = df[df['Step'] == 'Convergence']
+    df = df[df['Step'] != 'Convergence']
+    df['Step'] = df['Step'].astype(int)
+    df['Happy Count'] = df['Happy Count'].astype(float)
+    df['Happy Count Adjusted'] = df.groupby('Step')['Happy Count'].transform(lambda x: x - x.mean())
+    df['Step'] = df['Step'].astype(int)
+    df['Happy Count Adjusted'] = df['Happy Count Adjusted'].astype(float)
+    filtered_df = df[df['Step'] < 25]
+    sns.boxplot(x='Step',
+                y='Happy Count Adjusted',
+                data=filtered_df,
+                legend=True,
+                notch=True,
+                linewidth=0.75,
+                linecolor='k',
+                color=colors[1],
+                ax=ax3,
+                flierprops={'marker': 'o', 'markersize': 7.5, 'markeredgewidth': 0.25, 'markeredgecolor': colors[0]}
+                )
+    min_happy_count = filtered_df.groupby('Step')['Happy Count Adjusted'].min()
+    max_happy_count = filtered_df.groupby('Step')['Happy Count Adjusted'].max()
+    ax3.plot(min_happy_count.index,
+             min_happy_count.values,
+             label='Min',
+             color=colors[1], linewidth=0.75,
+             marker='o',
+             markerfacecolor='w',
+             linestyle='--')
+    ax3.plot(max_happy_count.index,
+             max_happy_count.values,
+             label='Max',
+             color=colors[2], linewidth=0.75,
+             marker='o',
+             markerfacecolor='w',
+             linestyle='--')
+    ax3.set_xlabel('Step', fontsize=13)
+    ax3.set_ylabel('Mean Adjusted Happy Count', fontsize=13)
+    ax3.legend()
+    ax3.set_xticks([0, 4, 9, 14, 19, 24])
+    ax3.set_axisbelow(True)
+    ax3.grid(which="both", linestyle='--', alpha=0.3)
+    inset_ax3 = inset_axes(ax3, width="40%", height="25%", loc='lower right', borderpad=2)
+    sns.histplot(df1['Happy Count'], ax=inset_ax3, linewidth=0.75,
+                 color=colors[0], bins=15, legend=False, alpha=0.9,
+                 common_norm=False)
+    inset_ax3.xaxis.set_label_position('top')
+    inset_ax3.xaxis.tick_top()
+    inset_ax3.set_xlabel('Total Steps', fontsize=8)
+    inset_ax3.set_ylabel('Frequency', fontsize=8)
+    inset_ax3.set_xlim(df1['Happy Count'].min() - 2,
+                       df1['Happy Count'].max())
+    inset_ax3.set_axisbelow(True)
+    #    inset_ax3.grid(which="both", linestyle='--', alpha=0.3)
+    inset_ax3.yaxis.set_major_formatter(ticker.FuncFormatter(lambda y, pos: f'{y / 1000:.0f}k'))
+    inset_ax3.tick_params(axis='both', which='major', labelsize=7)
+    ax3.tick_params(width=0.75, length=6.5, axis='both', which='major', labelsize=11)
+    legend_elements2 = [
+        Line2D([0], [0], color=colors[2],
+               lw=2, linestyle='--', marker='o',
+               markerfacecolor='w', markersize=6,
+               label=r'Max', alpha=1),
+        Line2D([0], [0], color=colors[1], lw=2,
+               linestyle='-', marker='o',
+               markerfacecolor='w', markersize=6,
+               label=r'Min', alpha=1),
+        Line2D([0], [0], color=colors[0], lw=0,
+               linestyle='-', marker='o',
+               markerfacecolor='w', markersize=6,
+               label=r'Outlier', alpha=1)
+    ]
+    ax3.legend(handles=legend_elements2, loc='upper right',
+               frameon=True,
+               fontsize=10, framealpha=1, facecolor='w',
+               edgecolor=(0, 0, 0, 1), ncols=1)
+    print(df1['Happy Count'].min(), df1['Happy Count'].max())
+
+
+
+
+
+
+    df = pd.read_csv(os.path.join(os.getcwd(),
+                                  '..',
+                                  'data',
+                                  'schelling',
+                                  'schelling_df_25_0.5_0.5.csv'),
+                     index_col=0)
+    df1 = df[df['Step'] == 'Convergence']
+    df = df[df['Step'] != 'Convergence']
+    df['Step'] = df['Step'].astype(int)
+    df['Happy Count'] = df['Happy Count'].astype(float)
+    df['Happy Count Adjusted'] = df.groupby('Step')['Happy Count'].transform(lambda x: x - x.mean())
+    df['Step'] = df['Step'].astype(int)
+    df['Happy Count Adjusted'] = df['Happy Count Adjusted'].astype(float)
+    filtered_df = df[df['Step'] < 25]
+    sns.boxplot(x='Step',
+                y='Happy Count Adjusted',
+                data=filtered_df,
+                legend=True,
+                notch=True,
+                linewidth=0.75,
+                linecolor='k',
+                color=colors[1],
+                ax=ax4,
+                flierprops={'marker': 'o', 'markersize': 7.5, 'markeredgewidth': 0.25, 'markeredgecolor': colors[0]}
+                )
+    min_happy_count = filtered_df.groupby('Step')['Happy Count Adjusted'].min()
+    max_happy_count = filtered_df.groupby('Step')['Happy Count Adjusted'].max()
+    ax4.plot(min_happy_count.index,
+             min_happy_count.values,
+             label='Min',
+             color=colors[1], linewidth=0.75,
+             marker='o',
+             markerfacecolor='w',
+             linestyle='--')
+    ax4.plot(max_happy_count.index,
+             max_happy_count.values,
+             label='Max',
+             color=colors[2], linewidth=0.75,
+             marker='o',
+             markerfacecolor='w',
+             linestyle='--')
+    ax4.set_xlabel('Step', fontsize=13)
+    ax4.set_ylabel('Mean Adjusted Happy Count', fontsize=13)
+    ax4.legend()
+    ax4.set_xticks([0, 4, 9, 14, 19, 24])
+    ax4.set_axisbelow(True)
+    ax4.grid(which="both", linestyle='--', alpha=0.3)
+    inset_ax4 = inset_axes(ax4, width="40%", height="25%", loc='lower right', borderpad=2)
+    sns.histplot(df1['Happy Count'], ax=inset_ax4, linewidth=0.75,
+                 color=colors[0], bins=15, legend=False, alpha=0.9,
+                 common_norm=False)
+    inset_ax4.xaxis.set_label_position('top')
+    inset_ax4.xaxis.tick_top()
+    inset_ax4.set_xlabel('Total Steps', fontsize=8)
+    inset_ax4.set_ylabel('Frequency', fontsize=8)
+    inset_ax4.set_xlim(df1['Happy Count'].min() - 2,
+                       df1['Happy Count'].max())
+    inset_ax4.set_axisbelow(True)
+    #    inset_ax4.grid(which="both", linestyle='--', alpha=0.3)
+    inset_ax4.yaxis.set_major_formatter(ticker.FuncFormatter(lambda y, pos: f'{y / 1000:.0f}k'))
+    inset_ax4.tick_params(axis='both', which='major', labelsize=7)
+    ax4.tick_params(width=0.75, length=6.5, axis='both', which='major', labelsize=11)
+    legend_elements2 = [
+        Line2D([0], [0], color=colors[2],
+               lw=2, linestyle='--', marker='o',
+               markerfacecolor='w', markersize=6,
+               label=r'Max', alpha=1),
+        Line2D([0], [0], color=colors[1], lw=2,
+               linestyle='-', marker='o',
+               markerfacecolor='w', markersize=6,
+               label=r'Min', alpha=1),
+        Line2D([0], [0], color=colors[0], lw=0,
+               linestyle='-', marker='o',
+               markerfacecolor='w', markersize=6,
+               label=r'Outlier', alpha=1)
+    ]
+    ax4.legend(handles=legend_elements2, loc='upper right',
+               frameon=True,
+               fontsize=10, framealpha=1, facecolor='w',
+               edgecolor=(0, 0, 0, 1), ncols=1)
+    print(df1['Happy Count'].min(), df1['Happy Count'].max())
+
+    #    for ax in [inset_ax1, inset_ax2, inset_ax3, inset_ax4]:
+    #        ax.spines['right'].set_visible(False)
+    #        ax.spines['bottom'].set_visible(False)
+
+    fig.subplots_adjust(wspace=0.25)
+    filename = 'schelling'
+    sns.despine(ax=ax1)
+    sns.despine(ax=ax2)
+    sns.despine(ax=ax3)
+    sns.despine(ax=ax4)
+    ax1.set_title('a.', loc='left', fontsize=22, y=1.0, x=-.05)
+    ax2.set_title('b.', loc='left', fontsize=22, y=1.0, x=-.05)
+    ax3.set_title('c.', loc='left', fontsize=22, y=1.0, x=-.05)
+    ax4.set_title('d.', loc='left', fontsize=22, y=1.0, x=-.05)
+
+    plt.savefig(os.path.join(os.getcwd(), '..', 'figures', filename + '.pdf'),
+                bbox_inches='tight')
+    plt.savefig(os.path.join(os.getcwd(), '..', 'figures', filename + '.png'),
+                bbox_inches='tight', dpi=600)
+
+
 def plot_scientometrics(figure_path, domain_df):
     df_rng, df_hrng, df_qrng, df_prng, df_quarng, df_yr, df_yr_dom, df_dom = load_scientometrics()
     df_yr = make_scientometric_ts(df_rng, df_hrng, df_qrng, df_prng, df_quarng, df_yr, domain_df)
@@ -106,8 +478,12 @@ def plot_scientometrics(figure_path, domain_df):
     plt.savefig(os.path.join(figure_path, 'scientometrics_over_time.pdf'), bbox_inches='tight')
 
 
-def plot_predictions(first_wave_10k_stratified_list, figure_path):
-    fig = plt.figure(figsize=(16, 10.5))
+def plot_predictions(first_wave_10k_stratified_list,
+                     figure_path,
+                     figsize,
+                     colors = ['#001c54', '#E89818']
+                     ):
+    fig = plt.figure(figsize=figsize)
     gs = GridSpec(6, 2, figure=fig)
     ax1 = fig.add_subplot(gs[0:3, 0:1])
     ax2 = fig.add_subplot(gs[0:1, 1:2])
@@ -117,8 +493,6 @@ def plot_predictions(first_wave_10k_stratified_list, figure_path):
     ax6 = fig.add_subplot(gs[4:5, 0:1])
     ax7 = fig.add_subplot(gs[5:6, 0:1])
     ax8 = fig.add_subplot(gs[3:6, 1:2])
-
-    colors = ['#001c54', '#E89818']
     housing = pd.read_csv(os.path.join(os.getcwd(),
                                        '..',
                                        'data',
@@ -139,7 +513,8 @@ def plot_predictions(first_wave_10k_stratified_list, figure_path):
                                                   'data',
                                                   'MNIST',
                                                   'results',
-                                                  'mnist_results.csv')))
+                                                  'mnist_results.csv'))
+                        )
     print('Covid min: ', np.min(first_wave_10k_stratified_list))
     print('Covid max: ', np.max(first_wave_10k_stratified_list))
     print('Covid mean: ', np.mean(first_wave_10k_stratified_list))
@@ -158,47 +533,67 @@ def plot_predictions(first_wave_10k_stratified_list, figure_path):
     mpl.rcParams['font.family'] = 'Helvetica'
     csfont = {'fontname': 'Helvetica'}
     sns.histplot(first_wave_10k_stratified_list, edgecolor='k',
-                 color=colors[0], alpha=0.7, stat='density',
+                 color=colors[0], alpha=1, stat='density',
                  ax=ax1, bins=nbins)
-    sns.kdeplot(first_wave_10k_stratified_list, color=colors[1], ax=ax1, common_norm=True)
+    sns.kdeplot(first_wave_10k_stratified_list,
+                color=colors[1],
+                ax=ax1,
+                common_norm=True,
+                linewidth=2
+                )
 
-    sns.histplot(housing['R2'], edgecolor='k',
-                 color=colors[0], alpha=0.7, stat='density',
-                 ax=ax2, bins=nbins)
+    sns.histplot(housing['R2'],
+                 edgecolor='k',
+                 color=colors[0],
+                 alpha=1,
+                 stat='density',
+                 ax=ax2,
+                 bins=nbins
+                 )
 
     modelling_seed_variance = housing.groupby('Folding_Seed')['R2'].std().reset_index()
     modelling_seed_variance.columns = ['Folding_Seed', 'R2_variance']
     sns.histplot(modelling_seed_variance['R2_variance'], edgecolor='k',
-                 color=colors[1], alpha=0.7, stat='density',
+                 color=colors[1], alpha=1, stat='density',
                  ax=ax3, bins=nbins)
 
     folding_seed_variance = housing.groupby('Modeling_Seed')['R2'].std().reset_index()
     folding_seed_variance.columns = ['Modeling_Seed', 'R2_variance']
     sns.histplot(np.round(folding_seed_variance['R2_variance'], 5), edgecolor='k',
-                 color=colors[1], alpha=0.7, stat='density',
+                 color=colors[1], alpha=1, stat='density',
                  ax=ax4, bins=nbins)
 
     sns.histplot(titanic['IMV'], edgecolor='k',
-                 color=colors[0], alpha=0.7, stat='density',
-                 ax=ax5, bins=nbins)
-    # sns.kdeplot(titanic['IMV'], color=colors[0], ax=ax5, common_norm=True)
+                 color=colors[0], alpha=1, stat='density',
+                 ax=ax5, bins=nbins
+                 )
 
     modelling_seed_variance = titanic.groupby('Folding_Seed')['IMV'].std().reset_index()
     modelling_seed_variance.columns = ['Folding_Seed', 'IMV_variance']
     sns.histplot(modelling_seed_variance['IMV_variance'], edgecolor='k',
-                 color=colors[1], alpha=0.7, stat='density',
+                 color=colors[1], alpha=1, stat='density',
                  ax=ax6, bins=nbins)
 
     folding_seed_variance = titanic.groupby('Modeling_Seed')['IMV'].std().reset_index()
     folding_seed_variance.columns = ['Modeling_Seed', 'IMV_variance']
     sns.histplot(folding_seed_variance['IMV_variance'], edgecolor='k',
-                 color=colors[1], alpha=0.7, stat='density',
+                 color=colors[1], alpha=1, stat='density',
                  ax=ax7, bins=nbins)
 
-    sns.histplot(mnist['correct'], edgecolor='k',
-                 color=colors[0], alpha=0.7, stat='density',
-                 ax=ax8, bins=nbins)
-    sns.kdeplot(mnist['correct'], color=colors[1], ax=ax8, common_norm=True)
+    sns.histplot(mnist['correct'],
+                 edgecolor='k',
+                 color=colors[0],
+                 alpha=1,
+                 stat='density',
+                 ax=ax8,
+                 bins=nbins
+                 )
+    sns.kdeplot(mnist['correct'],
+                color=colors[1],
+                ax=ax8,
+                common_norm=True,
+                linewidth=2
+                )
 
     for ax in [ax2, ax3, ax4, ax8]:
         ax.yaxis.set_label_position('right')
@@ -223,13 +618,9 @@ def plot_predictions(first_wave_10k_stratified_list, figure_path):
 
     ax8.set_xlabel('Accuracy', fontsize=16)
     legend_elements1 = [Patch(facecolor=colors[0], edgecolor='k',
-                              label=r'Bins', alpha=0.7),
-                        Line2D([0], [0], color=colors[1], lw=1, linestyle='-',
-                               label=r'KDE', alpha=0.7), ]
-    legend_elements2 = [Patch(facecolor=colors[1], edgecolor='k',
-                              label=r'Bins', alpha=0.7),
-                        Line2D([0], [0], color=colors[0], lw=1, linestyle='-',
-                               label=r'KDE', alpha=0.7), ]
+                              label=r'Bins', alpha=1),
+                        Line2D([0], [0], color=colors[1], lw=1.5, linestyle='-',
+                               label=r'KDE', alpha=1), ]
     ax1.legend(handles=legend_elements1, loc='center left', frameon=True,
                fontsize=label_fontsize - 2, framealpha=1, facecolor='w',
                edgecolor=(0, 0, 0, 1)
@@ -246,7 +637,8 @@ def plot_predictions(first_wave_10k_stratified_list, figure_path):
                  fontsize=13, ha='center', va='bottom',
                  bbox=dict(boxstyle='round,pad=0.35', fc='white'),
                  arrowprops=dict(arrowstyle='-[, widthB=12.5, lengthB=1',
-                                 lw=1.0))
+                                 lw=1.5)
+                 )
 
     mean = round(np.nanmean(mnist['correct']), 3)
     var = round(np.nanstd(mnist['correct']), 3)
@@ -255,7 +647,8 @@ def plot_predictions(first_wave_10k_stratified_list, figure_path):
                  fontsize=13, ha='center', va='bottom',
                  bbox=dict(boxstyle='round,pad=0.35', fc='white'),
                  arrowprops=dict(arrowstyle='-[, widthB=12.5, lengthB=1',
-                                 lw=1.0))
+                                 lw=1.5)
+                 )
 
     for ax, title in zip([ax1, ax2, ax3, ax4, ax5, ax6, ax7, ax8],
                          ['a.', 'b.', 'c.', 'd.', 'e.', 'f.', 'g.', 'h.']):
@@ -279,7 +672,7 @@ def plot_predictions(first_wave_10k_stratified_list, figure_path):
                                  connectionstyle="arc3,rad=0",
                                  color='black',
                                  mutation_scale=20,
-                                 lw=1)
+                                 lw=1.5)
                  )
 
     ax8.axvline(x=9625, ymin=0, ymax=0.82, color='red', linestyle='--')
@@ -296,7 +689,8 @@ def plot_predictions(first_wave_10k_stratified_list, figure_path):
                                  connectionstyle="arc3,rad=0",
                                  color='black',
                                  mutation_scale=20,
-                                 lw=1))
+                                 lw=1.5)
+                 )
 
     ax8.axvline(x=9690, ymin=0, ymax=0.82, color='red', linestyle='--')
     ymin, ymax = ax8.get_ylim()
@@ -312,15 +706,13 @@ def plot_predictions(first_wave_10k_stratified_list, figure_path):
                                  connectionstyle="arc3,rad=0",
                                  color='black',
                                  mutation_scale=20,
-                                 lw=1))
-
+                                 lw=1.5)
+                 )
     ax3.yaxis.set_major_formatter(ticker.FuncFormatter(lambda y, pos: f'{y / 1000:.0f}k'))
     ax4.yaxis.set_major_formatter(ticker.FuncFormatter(lambda y, pos: f'{y / 1000:.0f}k'))
     ax7.yaxis.set_major_formatter(ticker.FuncFormatter(lambda y, pos: f'{y / 1000:.0f}k'))
-
     for ax in [ax1, ax2, ax3, ax4, ax5, ax6, ax7, ax8]:
         ax.xaxis.set_major_locator(ticker.MaxNLocator(nbins=5))
-
     for ax in [ax1, ax5, ax6, ax7]:
         sns.despine(ax=ax)
     for ax in [ax2, ax3, ax4, ax8]:
@@ -495,17 +887,23 @@ def plot_further_examples():
     sns.despine(ax=ax2)
     plt.savefig(os.path.join(os.getcwd(), '..', 'figures', filename + '.pdf'),
                 bbox_inches='tight')
-    plt.savefig(os.path.join(os.getcwd(), '..', 'figures', filename + '.svg'),
-                bbox_inches='tight')
-    plt.savefig(os.path.join(os.getcwd(), '..', 'figures', filename + '.png'),
-                bbox_inches='tight', dpi=800)
+#    plt.savefig(os.path.join(os.getcwd(), '..', 'figures', filename + '.svg'),
+#                bbox_inches='tight')
+#    plt.savefig(os.path.join(os.getcwd(), '..', 'figures', filename + '.png'),
+#                bbox_inches='tight', dpi=800)
 
 
-def plot_three_rws():
+def plot_four_rws(figsize,
+                  colors = ['#001c54', '#E89818', '#8b0000'],
+                  fill_color = (255 / 255, 223 / 255, 0 / 255, 5 / 255)):
     def download_and_resample(ticker, start, end):
         data = yf.download(ticker, start=start, end=end)
         data = data.resample('D').ffill().dropna()  # Forward fill to handle any missing days
         return data
+
+    usuk_data = download_and_resample('USDGBP=X', start="2022-10-01", end="2024-06-30")
+    rw_usuk_path = os.path.join(os.getcwd(), '..', 'data', 'random_walk', 'random_walks_usuk.zip')
+    random_walks_usuk = pd.read_csv(rw_usuk_path, header=None, compression='zip')
 
     btc_data = download_and_resample('BTC-USD', start="2022-10-01", end="2024-06-30")
     rw_btc_path = os.path.join(os.getcwd(), '..', 'data', 'random_walk', 'random_walks_btc.zip')
@@ -526,34 +924,41 @@ def plot_three_rws():
         rw_data.index = new_index
         return rw_data
 
+    random_walks_usuk = adjust_index(usuk_data, random_walks_usuk)
     random_walks_btc = adjust_index(btc_data, random_walks_btc)
     random_walks_nasdaq = adjust_index(nasdaq_data, random_walks_nasdaq)
     random_walks_nvidia = adjust_index(nvidia_data, random_walks_nvidia)
 
-    colors = ['#001c54', '#E89818', '#8b0000']
-    fill_color = (255 / 255, 223 / 255, 0 / 255, 5 / 255)
-    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(14, 6), sharex=True)
+    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=figsize
+                                                 )
 
-    btc_data['Close'].plot(ax=ax1, color=colors[0])
-    random_walks_btc.min(axis=1).plot(ax=ax1, color=colors[1], alpha=0.8, linestyle='--')
-    random_walks_btc.median(axis=1).plot(ax=ax1, color='k', alpha=0.8, linestyle='--')
-    random_walks_btc.max(axis=1).plot(ax=ax1, color=colors[2], linestyle='--')
-    random_walks_btc.quantile(0.05, axis=1).plot(ax=ax1, color='k', linestyle='--', alpha=0.5, linewidth=0.75)
-    random_walks_btc.quantile(0.95, axis=1).plot(ax=ax1, color='k', linestyle='--', alpha=0.5, linewidth=0.75)
+    usuk_data['Close'].plot(ax=ax1, color=colors[0])
+    random_walks_usuk.min(axis=1).plot(ax=ax1, color=colors[1], alpha=1, linestyle='--')
+    random_walks_usuk.median(axis=1).plot(ax=ax1, color='k', alpha=1, linestyle='--')
+    random_walks_usuk.max(axis=1).plot(ax=ax1, color=colors[2], linestyle='--')
+    random_walks_usuk.quantile(0.05, axis=1).plot(ax=ax1, color='k', linestyle='--', alpha=1, linewidth=0.75)
+    random_walks_usuk.quantile(0.95, axis=1).plot(ax=ax1, color='k', linestyle='--', alpha=1, linewidth=0.75)
 
-    nasdaq_data['Close'].plot(ax=ax2, color=colors[0])
-    random_walks_nasdaq.min(axis=1).plot(ax=ax2, color=colors[1], alpha=0.8, linestyle='--')
-    random_walks_nasdaq.median(axis=1).plot(ax=ax2, color='k', alpha=0.8, linestyle='--')
-    random_walks_nasdaq.max(axis=1).plot(ax=ax2, color=colors[2], linestyle='--')
-    random_walks_nasdaq.quantile(0.05, axis=1).plot(ax=ax2, color='k', linestyle='--', alpha=0.5, linewidth=0.75)
-    random_walks_nasdaq.quantile(0.95, axis=1).plot(ax=ax2, color='k', linestyle='--', alpha=0.5, linewidth=0.75)
+    btc_data['Close'].plot(ax=ax2, color=colors[0])
+    random_walks_btc.min(axis=1).plot(ax=ax2, color=colors[1], alpha=1, linestyle='--')
+    random_walks_btc.median(axis=1).plot(ax=ax2, color='k', alpha=1, linestyle='--')
+    random_walks_btc.max(axis=1).plot(ax=ax2, color=colors[2], linestyle='--')
+    random_walks_btc.quantile(0.05, axis=1).plot(ax=ax2, color='k', linestyle='--', alpha=1, linewidth=0.75)
+    random_walks_btc.quantile(0.95, axis=1).plot(ax=ax2, color='k', linestyle='--', alpha=1, linewidth=0.75)
 
-    nvidia_data['Close'].plot(ax=ax3, color=colors[0])
-    random_walks_nvidia.min(axis=1).plot(ax=ax3, color=colors[1], alpha=0.8, linestyle='-')
-    random_walks_nvidia.median(axis=1).plot(ax=ax3, color='k', alpha=0.8, linestyle='--')
-    random_walks_nvidia.max(axis=1).plot(ax=ax3, color=colors[2], linestyle='--')
-    random_walks_nvidia.quantile(0.05, axis=1).plot(ax=ax3, color='k', linestyle='--', alpha=0.5, linewidth=0.75)
-    random_walks_nvidia.quantile(0.95, axis=1).plot(ax=ax3, color='k', linestyle='--', alpha=0.5, linewidth=0.75)
+    nasdaq_data['Close'].plot(ax=ax3, color=colors[0])
+    random_walks_nasdaq.min(axis=1).plot(ax=ax3, color=colors[1], alpha=1, linestyle='--')
+    random_walks_nasdaq.median(axis=1).plot(ax=ax3, color='k', alpha=1, linestyle='--')
+    random_walks_nasdaq.max(axis=1).plot(ax=ax3, color=colors[2], linestyle='--')
+    random_walks_nasdaq.quantile(0.05, axis=1).plot(ax=ax3, color='k', linestyle='--', alpha=1, linewidth=0.75)
+    random_walks_nasdaq.quantile(0.95, axis=1).plot(ax=ax3, color='k', linestyle='--', alpha=1, linewidth=0.75)
+
+    nvidia_data['Close'].plot(ax=ax4, color=colors[0])
+    random_walks_nvidia.min(axis=1).plot(ax=ax4, color=colors[1], alpha=1, linestyle='-')
+    random_walks_nvidia.median(axis=1).plot(ax=ax4, color='k', alpha=1, linestyle='--')
+    random_walks_nvidia.max(axis=1).plot(ax=ax4, color=colors[2], linestyle='--')
+    random_walks_nvidia.quantile(0.05, axis=1).plot(ax=ax4, color='k', linestyle='--', alpha=1, linewidth=0.75)
+    random_walks_nvidia.quantile(0.95, axis=1).plot(ax=ax4, color='k', linestyle='--', alpha=1, linewidth=0.75)
 
     legend_elements = [
         Line2D([0], [0], color=colors[2], linestyle='--',
@@ -564,67 +969,137 @@ def plot_three_rws():
                label=r'Insample', lw=2),
         Line2D([0], [0], color='k', linestyle='--',
                label=r'Median', lw=2),
-        Line2D([0], [0], color='k', linestyle='--', alpha=0.5, linewidth=0.75,
+        Line2D([0], [0], color='k', linestyle='--', alpha=1, linewidth=0.75,
                label=r'95th Percentile', lw=2),
         Patch(facecolor=fill_color, edgecolor=(0, 0, 0, 1),
-              label=r'Variance')
+              label=r'Range')
     ]
+    ax1.legend(handles=legend_elements, loc='lower left', frameon=True,
+               fontsize=11.25, framealpha=1, facecolor='w',
+               edgecolor=(0, 0, 0, 1), ncols=3
+               )
 
     ax1.set_xlabel('')
     ax2.set_xlabel('')
     ax3.set_xlabel('')
-    ax1.legend(handles=legend_elements, loc='upper left', frameon=True,
-               fontsize=11, framealpha=1, facecolor='w',
-               edgecolor=(0, 0, 0, 1), ncols=1)
-    ax2.legend(handles=legend_elements, loc='upper left', frameon=True,
-               fontsize=11, framealpha=1, facecolor='w',
-               edgecolor=(0, 0, 0, 1), ncols=1)
-    ax3.legend(handles=legend_elements, loc='upper left', frameon=True,
-               fontsize=11, framealpha=1, facecolor='w',
-               edgecolor=(0, 0, 0, 1), ncols=1)
+    ax4.set_xlabel('')
     ax1.grid(which="major", linestyle='--', alpha=0.225)
     ax2.grid(which="major", linestyle='--', alpha=0.225)
     ax3.grid(which="major", linestyle='--', alpha=0.225)
+    ax4.grid(which="major", linestyle='--', alpha=0.225)
     ax1.set_title('a.', loc='left', fontsize=22, y=1.035)
     ax2.set_title('b.', loc='left', fontsize=22, y=1.035)
     ax3.set_title('c.', loc='left', fontsize=22, y=1.035)
+    ax4.set_title('d.', loc='left', fontsize=22, y=1.035)
 
-    ax1.fill_between(random_walks_btc.index,
+    ax1.fill_between(random_walks_usuk.index,
+                     random_walks_usuk.min(axis=1),
+                     random_walks_usuk.max(axis=1),
+                     color=fill_color
+                     )
+    ax2.fill_between(random_walks_btc.index,
                      random_walks_btc.min(axis=1),
                      random_walks_btc.max(axis=1),
                      color=fill_color)
-    ax2.fill_between(random_walks_nasdaq.index,
+    ax3.fill_between(random_walks_nasdaq.index,
                      random_walks_nasdaq.min(axis=1),
                      random_walks_nasdaq.max(axis=1),
                      color=fill_color)
-    ax3.fill_between(random_walks_nvidia.index,
+    ax4.fill_between(random_walks_nvidia.index,
                      random_walks_nvidia.min(axis=1),
                      random_walks_nvidia.max(axis=1),
                      color=fill_color)
 
-    ax1.yaxis.set_major_formatter(ticker.FuncFormatter(lambda y, pos: f'${y / 1000:.0f}k'))
-    ax2.yaxis.set_major_formatter(ticker.FuncFormatter(lambda y, pos: f'{y / 1:.0f}'))
-    ax3.yaxis.set_major_formatter(ticker.FuncFormatter(lambda y, pos: f'${y / 1:.0f}'))
-    ax1.set_ylabel('Bitcoin Price', fontsize=14)
-    ax2.set_ylabel('US/UK Exchange Rate', fontsize=14)
+    ax2.yaxis.set_major_formatter(ticker.FuncFormatter(lambda y, pos: f'${y / 1000:.0f}k'))
+    ax3.yaxis.set_major_formatter(ticker.FuncFormatter(lambda y, pos: f'{y / 1:.0f}'))
+    ax4.yaxis.set_major_formatter(ticker.FuncFormatter(lambda y, pos: f'${y / 1:.0f}'))
+    ax1.set_ylabel('US ($) /UK (£) Exchange Rate', fontsize=14)
+    ax2.set_ylabel('Bitcoin Price', fontsize=14)
     ax3.set_ylabel('NASDAQ Composite', fontsize=14)
+    ax4.set_ylabel('NVidia Share Price', fontsize=14)
+
+    inset_ax = inset_axes(ax1, width="40%", height="25%", loc='upper left', borderpad=2.5)
+    sns.histplot(random_walks_usuk.iloc[-1], ax=inset_ax,
+                 color=colors[0], bins=12,
+                 legend=False, alpha=0.9,
+                 common_norm=False)
+    inset_ax.set_xlabel('US ($) / GBP (£)')
+    inset_ax.set_ylabel('Frequency')
+    inset_ax.set_axisbelow(True)
+    inset_ax.yaxis.set_label_position("right")
+    inset_ax.yaxis.tick_right()
+    inset_ax.spines['left'].set_visible(False)
+    inset_ax.spines['top'].set_visible(False)
+#    inset_ax.grid(which="both", linestyle='--', alpha=0.3)
+#    sns.despine(ax=inset_ax, left=True, top=True, right=False, bottom=False)
+
+    inset_ax = inset_axes(ax2, width="40%", height="25%", loc='upper left', borderpad=2.5)
+    sns.histplot(random_walks_btc.iloc[-1], ax=inset_ax,
+                 color=colors[0], bins=15,
+                 legend=False, alpha=0.9,
+                 common_norm=False)
+    inset_ax.set_xlabel('Bitcoin Price')
+    inset_ax.set_ylabel('Frequency')
+    inset_ax.set_axisbelow(True)
+    inset_ax.yaxis.set_label_position("right")
+    inset_ax.yaxis.tick_right()
+    inset_ax.spines['left'].set_visible(False)
+    inset_ax.spines['top'].set_visible(False)
+#    inset_ax.grid(which="both", linestyle='--', alpha=0.3)
+#    sns.despine(ax=inset_ax, left=True, top=True, right=False, bottom=False)
+
+    inset_ax = inset_axes(ax3, width="40%", height="25%", loc='upper left', borderpad=2.5)
+    sns.histplot(random_walks_nasdaq.iloc[-1], ax=inset_ax,
+                 color=colors[0], bins=15,
+                 legend=False, alpha=0.9,
+                 common_norm=False)
+    inset_ax.set_xlabel('NASDAQ Composite')
+    inset_ax.set_ylabel('Frequency')
+    inset_ax.set_axisbelow(True)
+    inset_ax.yaxis.set_label_position("right")
+    inset_ax.yaxis.tick_right()
+    inset_ax.spines['left'].set_visible(False)
+    inset_ax.spines['top'].set_visible(False)
+#    inset_ax.grid(which="both", linestyle='--', alpha=0.3)
+#    sns.despine(ax=inset_ax, left=True, top=True, right=False, bottom=False)
+
+    inset_ax = inset_axes(ax4, width="40%", height="25%", loc='upper left', borderpad=2.5)
+    sns.histplot(random_walks_nvidia.iloc[-1], ax=inset_ax,
+                 color=colors[0], bins=15,
+                 legend=False, alpha=0.9,
+                 common_norm=False
+                 )
+    inset_ax.set_xlabel('NVidia Share Price')
+    inset_ax.set_ylabel('Frequency')
+    inset_ax.set_axisbelow(True)
+    inset_ax.yaxis.set_label_position("right")
+    inset_ax.yaxis.tick_right()
+    inset_ax.spines['left'].set_visible(False)
+    inset_ax.spines['top'].set_visible(False)
+#    inset_ax.grid(which="both", linestyle='--', alpha=0.3)
+#    sns.despine(ax=inset_ax, left=True, top=True, right=False, bottom=False)
+
+    sns.despine(ax=ax1, left=False, top=True, right=True, bottom=False)
+    sns.despine(ax=ax2, left=False, top=True, right=True, bottom=False)
+    sns.despine(ax=ax3, left=False, top=True, right=True, bottom=False)
+    sns.despine(ax=ax4, left=False, top=True, right=True, bottom=False)
     plt.tight_layout()
-    filename = 'three_rws'
+    filename = 'four_rws'
     plt.savefig(os.path.join(os.getcwd(), '..', 'figures', filename + '.pdf'),
                 bbox_inches='tight')
 
+    print('The minimum USD/GDP RW forecast is:', random_walks_usuk.min(axis=1)[-1])
+    print('The maximum USD/GDP RW RW forecast is:', random_walks_usuk.max(axis=1)[-1])
+    print('The median USD/GDP RW RW forecast is:', random_walks_usuk.median(axis=1)[-1])
     print('The minimum BTC RW forecast is:', random_walks_btc.min(axis=1)[-1])
     print('The maximum BTC RW forecast is:', random_walks_btc.max(axis=1)[-1])
     print('The median BTC RW forecast is:', random_walks_btc.median(axis=1)[-1])
-
     print('The minimum NASDAQ RW forecast is:', random_walks_nasdaq.min(axis=1)[-1])
     print('The maximum NASDAQ RW forecast is:', random_walks_nasdaq.max(axis=1)[-1])
     print('The median NASDAQRW forecast is:', random_walks_nasdaq.median(axis=1)[-1])
-
     print('The minimum NVIDIA RW forecast is:', random_walks_nvidia.min(axis=1)[-1])
     print('The maximum NVIDIA RW forecast is:', random_walks_nvidia.max(axis=1)[-1])
     print('The median NVIDIA RW forecast is:', random_walks_nvidia.median(axis=1)[-1])
-
 
 def load_collisions():
     chunk_size = 10000
@@ -747,7 +1222,11 @@ def plot_collisions(figure_path):
                 bbox_inches='tight')
 
 
-def plot_four_simple_examples(figure_path):
+def plot_four_simple_examples(figure_path,
+                              figsize,
+                              colors = ['#001c54', '#E89818', '#8b0000'],
+                              fill_color = (254, 208, 126, 10/255),
+                              ):
     df_sir = pd.read_csv(os.path.join(os.getcwd(),
                                       '..',
                                       'data',
@@ -776,21 +1255,6 @@ def plot_four_simple_examples(figure_path):
                                                       'collisions',
                                                       'stats_32_final_row.csv')
                                          )
-    # Load data for 1d here
-    #    size = 366
-    #    btc_data = yf.download('BTC-USD', start="2021-05-08", end="2023-05-15")
-    #    rw_path = os.path.join(os.getcwd(), '..', 'data', 'random_walk', 'random_walks.csv')
-    #    random_walks = pd.read_csv(rw_path, header=None)
-    #    btc_data = btc_data / 1000
-    #    random_walks = random_walks / 1000
-    #    index = pd.DataFrame(index=btc_data.index +
-    #                               pd.DateOffset(len(btc_data) + 1))[0:size + 1].index
-    #    random_walks.index = index
-    #    rw_index = random_walks.index
-    #    rw_min = random_walks.min(axis=1)
-    #    rw_max = random_walks.max(axis=1)
-    #    rw_med = random_walks.median(axis=1)
-
     df_solow = pd.read_csv(os.path.join(os.getcwd(),
                                         '..',
                                         'data',
@@ -807,7 +1271,7 @@ def plot_four_simple_examples(figure_path):
         'TFP': ['min', 'max', 'median']
     }).reset_index()
 
-    fig = plt.figure(figsize=(14, 10.5), constrained_layout=True)
+    fig = plt.figure(figsize=figsize, constrained_layout=True)
     gs = gridspec.GridSpec(8, 2, figure=fig, )
 
     ax1 = fig.add_subplot(gs[:4, 0])
@@ -821,12 +1285,6 @@ def plot_four_simple_examples(figure_path):
     label_fontsize = 18
     mpl.rcParams['font.family'] = 'Helvetica'
     nbins = 20
-
-    #################
-    # Colors
-    #################
-    colors = ['#001c54', '#E89818', '#8b0000']
-    fill_color = (255 / 255, 223 / 255, 0 / 255, 3 / 255)
 
     #################
     # Figure 1a here#
@@ -865,7 +1323,9 @@ def plot_four_simple_examples(figure_path):
     ax2.set_ylim(2.225, 4.5)
     ax2.hlines(math.pi, df_buffon.index[0] + 500, df_buffon.index[-1],
                color=colors[0], linestyle='-')
-    ax2.fill_between(df_buffon.index, df_buffon['Min'], df_buffon['Max'],
+    ax2.fill_between(df_buffon.index,
+                     df_buffon['Min'],
+                     df_buffon['Max'],
                      color=fill_color)
     ax2.set_xlabel('Number of Throws', fontsize=16)
     ax2.set_ylabel(r'Estimate of $\mathrm{\pi}$', fontsize=16)
@@ -922,7 +1382,6 @@ def plot_four_simple_examples(figure_path):
     ax3.set_xlabel('Sample size', fontsize=16)
 
     ax3_inset = ax3.inset_axes([0.035, 0.535, 0.375, 0.35], transform=ax3.transAxes)
-    nbins = 25
     sns.histplot(df_collisions_finalrow['x'],
                  ax=ax3_inset,
                  color=colors[0],
@@ -1021,12 +1480,21 @@ def plot_four_simple_examples(figure_path):
                     top=True,
                     bottom=False)
     # plt.tight_layout()
+    sns.despine(ax=ax1)
+    sns.despine(ax=ax2)
+    sns.despine(ax=ax3)
+    sns.despine(ax=ax4)
+    sns.despine(ax=ax5)
     filename = 'four_simple_examples'
     plt.savefig(os.path.join(figure_path, filename + '.pdf'),
                 bbox_inches='tight')
 
 
-def plot_mvprobit(figure_path):
+def plot_mvprobit(figure_path,
+                  figsize,
+                  colors = ['#001c54', (255/255, 223/255, 0/255, 3/255), '#8b0000'],
+                  fill_color = (254, 208, 126, 10/255)
+                  ):
     df = pd.read_csv(os.path.join(os.getcwd(),
                                   '..',
                                   'data',
@@ -1039,38 +1507,33 @@ def plot_mvprobit(figure_path):
         new_df.at[draw, 'Max'] = df[df['draws']==draw]['rho21'].max()
         new_df.at[draw, 'Median'] = df[df['draws']==draw]['rho21'].median()
 
-    fig, (ax1) = plt.subplots(1, 1, figsize=(12, 4))
-    colors = ['#001c54', (255/255, 223/255, 0/255, 3/255), '#8b0000']
+    fig, (ax1) = plt.subplots(1, 1, figsize=figsize)
     mpl.rcParams['font.family'] = 'Helvetica'
     new_df['Median'].plot(ax=ax1, color=colors[0])
     new_df['Max'].plot(ax=ax1, linestyle='--', color=colors[2])
     new_df['Min'].plot(ax=ax1, linestyle='--', color=colors[2])
-
     ax1.grid(which = "both", linestyle='--', alpha=0.225)
-
-    ax1.set_title('a.', loc='left', fontsize=18)
+#    ax1.set_title('a.', loc='left', fontsize=18)
     ax1.set_xlabel('Number of Draws', fontsize=14)
     ax1.set_ylabel("Simulated Maximum \n " +
                    r"Likelihood Estimate of $\rho_{21}$", fontsize=14)
-
     ax1.fill_between(new_df.index, new_df.min(axis=1),
-                     new_df.max(axis=1), color=colors[1])
-
+                     new_df.max(axis=1), color=fill_color)
     legend_elements2 = [
         Line2D([0], [0], color=colors[0], lw=2, linestyle='-',
-               label=r'Median', alpha=0.7),
+               label=r'Median'),
        Line2D([0], [0], color=colors[2], lw=2, linestyle='--',
-               label=r'Min/Max', alpha=0.7),
-       Line2D([0], [0], color='k',linewidth=0.5, linestyle='dashed', alpha=.75,
+               label=r'Min/Max'),
+       Line2D([0], [0], color='k',linewidth=0.5, linestyle='dashed',
                label=r'ML Estimate'),
-        Patch(facecolor=colors[1], edgecolor=(0,0,0,1),
+        Patch(facecolor=fill_color, edgecolor=(0,0,0,1),
               label=r'Seed Variance')]
     ax1.legend(handles=legend_elements2, loc='upper right', frameon=True,
                fontsize=12, framealpha=1, facecolor='w',
                edgecolor=(0, 0, 0, 1), ncols=2
               )
     plt.hlines(y=-0.270, xmin=2, xmax=150,
-               color='k', linewidth=0.5, linestyle='dashed', alpha=.75)
+               color='k', linewidth=1, linestyle='dashed', alpha=1)
     ax1.set_xlim(0, 152)
     print(r'Min value of $\rho_{21}$ at 2 draws:',
           df[df['draws'] == 2]['rho21'].min())
@@ -1080,7 +1543,6 @@ def plot_mvprobit(figure_path):
           df[df['draws'] == 150]['rho21'].min())
     print(r'Max value of $\rho_{21}$ at 150 draws:',
           df[df['draws'] == 150]['rho21'].max())
-
     plt.savefig(os.path.join(figure_path, 'mvprobit' + '.pdf'),
                 bbox_inches = 'tight')
 
@@ -1275,8 +1737,8 @@ def combine_buffon_and_rw(figure_path):
     plt.savefig(os.path.join(figure_path, filename + '.pdf'),
                 bbox_inches = 'tight')
 
-
-
+'''
+# Old FFC plotting code here
 def plot_ffc(df, figure_path):
     def jointplotter(df, outcome, model, counter):
         df1 = df[(df['outcome']==outcome) &
@@ -1411,7 +1873,7 @@ class SeabornFig2Grid():
     def _resize(self, evt=None):
         self.sg.fig.set_size_inches(self.fig.get_size_inches())
 
-
+'''
 def load_sympt(filename):
     def try_literal_eval(e):
         try:
@@ -1426,6 +1888,107 @@ def load_sympt(filename):
     mylist = df['roc_auc'].to_list()
     flat_list = [item for sublist in mylist for item in sublist]
     return flat_list
+
+
+def plot_ffc(ffc, figure_path=None):
+    # Define the gridspec layout with adjusted wspace
+    fig = plt.figure(figsize=(16, 10))
+    gs = gridspec.GridSpec(2, 4, width_ratios=[1, 1, 1, 0.1], hspace=0.25, wspace=0.4)  # Adjusted wspace
+
+    # Create subplots using gridspec
+    ax1 = fig.add_subplot(gs[0, 0])
+    ax2 = fig.add_subplot(gs[0, 1])
+    ax3 = fig.add_subplot(gs[0, 2])
+    ax4 = fig.add_subplot(gs[1, 0])
+    ax5 = fig.add_subplot(gs[1, 1])
+    ax6 = fig.add_subplot(gs[1, 2])
+
+    colormap = 'Spectral_r'
+
+    gpa = ffc[(ffc['outcome'] == 'gpa') & (ffc['account'] == 'ols')]
+    hb2 = ax1.hexbin(gpa['beta'], gpa['r2_holdout'], cmap=colormap, gridsize=55,
+                     mincnt=1, linewidths=0.1, edgecolor='k')
+
+    grit = ffc[(ffc['outcome'] == 'grit') & (ffc['account'] == 'ols')]
+    hb3 = ax2.hexbin(grit['beta'], grit['r2_holdout'], cmap=colormap, gridsize=55,
+                     mincnt=1, linewidths=0.1, edgecolor='k')
+
+    materialHardship = ffc[(ffc['outcome'] == 'materialHardship') & (ffc['account'] == 'ols')]
+    hb6 = ax3.hexbin(materialHardship['beta'], materialHardship['r2_holdout'], cmap=colormap, gridsize=55,
+                     mincnt=1, linewidths=0.1, edgecolor='k')
+
+    eviction = ffc[(ffc['outcome'] == 'eviction') & (ffc['account'] == 'logit')]
+    hb1 = ax4.hexbin(eviction['beta'], eviction['r2_holdout'], cmap=colormap, gridsize=55,
+                     mincnt=1, linewidths=0., edgecolor='k')
+
+    jobTraining = ffc[(ffc['outcome'] == 'jobTraining') & (ffc['account'] == 'logit')]
+    hb4 = ax5.hexbin(jobTraining['beta'], jobTraining['r2_holdout'], cmap=colormap, gridsize=55,
+                     mincnt=1, linewidths=0.1, edgecolor='k')
+
+    layoff = ffc[(ffc['outcome'] == 'layoff') & (ffc['account'] == 'logit')]
+    hb5 = ax6.hexbin(layoff['beta'], layoff['r2_holdout'], cmap=colormap, gridsize=45,
+                     mincnt=1, linewidths=0.1, edgecolor='k')
+
+    # Manually position the colorbar
+    cbar_ax = fig.add_axes([0.85, 0.1085, 0.02, 0.77])  # [left, bottom, width, height]
+    cbar = fig.colorbar(hb1, cax=cbar_ax, spacing='uniform', extend='max')
+    #    cbar.set_label('Counts', fontsize=14)
+    cbar.ax.set_title('Count', fontsize=14)
+
+    for ax, title in zip([ax1, ax2, ax3, ax4, ax5, ax6],
+                         ['a.', 'b.', 'c.', 'd.', 'e.', 'f.']):
+        ax.set_axisbelow(True)
+        ax.grid(which="both", linestyle='--', alpha=0.225)
+        ax.set_title(title, loc='left', fontsize=18, y=1.025, x=-0.075)
+        ax.tick_params(axis='both', which='major', labelsize=10)  # Reduced label size
+
+    # Adjust the layout to minimize padding and avoid label overlap
+
+    ax1.set_ylabel('Pseudo-R$^2$ (GPA)', fontsize=12)
+    ax2.set_ylabel('Pseudo-R$^2$ (Grit)', fontsize=12)
+    ax3.set_ylabel('Pseudo-R$^2$ (Material Hardship)', fontsize=12)
+    ax4.set_ylabel('Pseudo-R$^2$ (Eviction)', fontsize=12)
+    ax5.set_ylabel('Pseudo-R$^2$ (Job Training)', fontsize=12)
+    ax6.set_ylabel('Pseudo-R$^2$ (Layoff)', fontsize=12)
+
+    ax1.set_xlabel(r'$\mathrm{\hat{\beta}}$ GPA (Lagged)', fontsize=12)
+    ax2.set_xlabel(r'$\mathrm{\hat{\beta}}$ Grit (Lagged)', fontsize=12)
+    ax3.set_xlabel(r'$\mathrm{\hat{\beta}}$ Material Hardship (Lagged)', fontsize=12)
+    ax4.set_xlabel(r'$\mathrm{\hat{\beta}}$ Eviction (Lagged)', fontsize=12)
+    ax5.set_xlabel(r'$\mathrm{\hat{\beta}}$ Job Training (Lagged)', fontsize=12)
+    ax6.set_xlabel(r'$\mathrm{\hat{\beta}}$ Layoff (Lagged)', fontsize=12)
+
+    '''
+    From the docker container:
+
+    eviction,logit,0.014352564873968743,1.71382900923502,8544
+    eviction,ols,0.01839766283470634,0.191094206453511,8544
+    gpa,logit,NaN,NA,8544
+    gpa,ols,0.10595694838274616,0.191098639078027,8544
+    grit,logit,NaN,NA,8544
+    grit,ols,0.014244423233962134,0.0276498416056555,8544
+    jobTraining,logit,0.05071272180604092,0.757814349306344,8544
+    jobTraining,ols,0.05330811724942219,0.146585227369163,8544
+    layoff,logit,0.007744404997622412,0.34444620652094,8544
+    layoff,ols,0.007013521417237656,0.057964715568005,8544
+    materialHardship,logit,NaN,NA,8544
+    materialHardship,ols,0.1738409252064158,0.371661682034748,8544
+    '''
+    ax1.axvline(0.191098639078027, linestyle='--', color='k', linewidth=1.1, alpha=0.5)
+    ax1.axhline(0.10595694838274616, linestyle='--', color='k', linewidth=1.1, alpha=0.5)
+    ax2.axvline(0.0276498416056555, linestyle='--', color='k', linewidth=1.1, alpha=0.5)
+    ax2.axhline(0.014244423233962134, linestyle='--', color='k', linewidth=1.1, alpha=0.5)
+    ax3.axhline(0.1738409252064158, linestyle='--', color='k', linewidth=1.1, alpha=0.5)
+    ax3.axvline(0.371661682034748, linestyle='--', color='k', linewidth=1.1, alpha=0.5)
+    ax4.axhline(0.014352564873968743, linestyle='--', color='k', linewidth=1.1, alpha=0.5)
+    ax4.axvline(1.71382900923502, linestyle='--', color='k', linewidth=1.1, alpha=0.5)
+    ax5.axhline(0.05071272180604092, linestyle='--', color='k', linewidth=1.1, alpha=0.5)
+    ax5.axvline(0.757814349306344, linestyle='--', color='k', linewidth=1.1, alpha=0.5)
+    ax6.axvline(0.34444620652094, linestyle='--', color='k', linewidth=1.1, alpha=0.5)
+    ax6.axhline(0.007744404997622412, linestyle='--', color='k', linewidth=1.1, alpha=0.5)
+
+    plt.tight_layout(rect=[0, 0, 0.9, 1])  # Leave space on the right for the colorbar
+    plt.savefig(os.path.join(figure_path, 'ffc_seeds.pdf'), bbox_inches='tight')
 
 
 def covid_plotter(list1, list2, list3, list4, figure_path):
@@ -1829,7 +2392,7 @@ def plot_topic_jointplot():
     plt.show()
 
 
-def plot_topics_barplot(figure_path):
+def plot_topics_barplot(figure_path, figsize, colors = ['#001c54', '#E89818']):
     #
     metapath = os.path.join(os.getcwd(),
                             '..',
@@ -1862,8 +2425,7 @@ def plot_topics_barplot(figure_path):
                              )
     fig, ((ax1, ax2, ax3),
           (ax4, ax5, ax6)
-          ) = plt.subplots(2, 3, figsize=(14, 8))
-    colors = ['#001c54', '#E89818']
+          ) = plt.subplots(2, 3, figsize=figsize)
     nbins = 25
     sns.histplot(science[science['random_state'] != 77]['topics_count'],
                  ax=ax1,
@@ -1913,6 +2475,8 @@ def plot_topics_barplot(figure_path):
     ax2.set_title('b.', loc='left', fontsize=23)
     ax3.set_title('c.', loc='left', fontsize=22)
     ax4.set_title('d.', loc='left', fontsize=22)
+    ax5.set_title('e.', loc='left', fontsize=22)
+    ax6.set_title('f.', loc='left', fontsize=22)
     # ax1.set_xlim(0, 400)
     # ax2.set_xlim(0, 160)
     # ax3.set_xlim(0, ax3.get_xlim()[1])
@@ -1934,7 +2498,7 @@ def plot_topics_barplot(figure_path):
         Patch(facecolor=colors[0], edgecolor=(0, 0, 0, 1),
               label=r'Histogram'),
         Line2D([0], [0], color=colors[1], lw=2, linestyle='-',
-               label=r'Kernel Density', alpha=0.7)
+               label=r'Kernel Density', alpha=1)
     ]
     #    ax1.legend(handles=legend_elements1, loc='upper right', frameon=True,
     #               fontsize=10, framealpha=1, facecolor='w',
@@ -1967,9 +2531,9 @@ def plot_topics_barplot(figure_path):
     print(f"NEJM mean number of topics: {nejm['topics_count'].mean()}")
     print(f"NEJM min number of topics: {nejm['topics_count'].min()}")
     print(f"NEJM max number of topics: {nejm['topics_count'].max()}")
-    print(f"PNAS mean number of topics: {science['topics_count'].mean()}")
-    print(f"PNAS min number of topics: {science['topics_count'].min()}")
-    print(f"PNAS max number of topics: {science['topics_count'].max()}")
+    print(f"PNAS mean number of topics: {pnas['topics_count'].mean()}")
+    print(f"PNAS min number of topics: {pnas['topics_count'].min()}")
+    print(f"PNAS max number of topics: {pnas['topics_count'].max()}")
     print(f"Nature mean number of topics: {nejm['topics_count'].mean()}")
     print(f"Nature min number of topics: {nejm['topics_count'].min()}")
     print(f"Nature max number of topics: {nejm['topics_count'].max()}")
@@ -2013,7 +2577,8 @@ def plot_topics_barplot(figure_path):
                 ymin=0,
                 ymax=1,
                 color='red',
-                linestyle='--')
+                linestyle='--',
+                linewidth=2)
     annotation_y = ymin + (ymax - ymin) * 0.8  # 70% up the y-axis
     ax1.annotate('   Seed 77:\n  Topics = ' + str(n_topics77),
                  xy=(n_topics77,
@@ -2036,7 +2601,8 @@ def plot_topics_barplot(figure_path):
                 ymin=0,
                 ymax=1,
                 color='red',
-                linestyle='--')
+                linestyle='--',
+                linewidth=2)
     annotation_y = ymin + (ymax - ymin) * 0.8  # 70% up the y-axis
     ax2.annotate('   Seed 77:\n  Topics = ' + str(n_topics77),
                  xy=(n_topics77,
@@ -2059,7 +2625,8 @@ def plot_topics_barplot(figure_path):
                 ymin=0,
                 ymax=1,
                 color='red',
-                linestyle='--')
+                linestyle='--',
+                linewidth=2)
     annotation_y = ymin + (ymax - ymin) * 0.8  # 70% up the y-axis
     ax3.annotate('   Seed 77:\n  Topics = ' + str(n_topics77),
                  xy=(n_topics77,
@@ -2082,7 +2649,8 @@ def plot_topics_barplot(figure_path):
                 ymin=0,
                 ymax=1,
                 color='red',
-                linestyle='--')
+                linestyle='--',
+                linewidth=2)
     annotation_y = ymin + (ymax - ymin) * 0.8  # 70% up the y-axis
     ax4.annotate('   Seed 77:\n  Topics = ' + str(n_topics77),
                  xy=(n_topics77,
@@ -2104,7 +2672,8 @@ def plot_topics_barplot(figure_path):
                 ymin=0,
                 ymax=1,
                 color='red',
-                linestyle='--')
+                linestyle='--',
+                linewidth=2)
     annotation_y = ymin + (ymax - ymin) * 0.8  # 70% up the y-axis
     ax5.annotate('   Seed 77:\n  Topics = ' + str(n_topics77),
                  xy=(n_topics77,
@@ -2127,7 +2696,8 @@ def plot_topics_barplot(figure_path):
                 ymin=0,
                 ymax=1,
                 color='red',
-                linestyle='--')
+                linestyle='--',
+                linewidth=2)
     annotation_y = ymin + (ymax - ymin) * 0.8  # 70% up the y-axis
     ax6.annotate('   Seed 77:\n  Topics = ' + str(n_topics77),
                  xy=(n_topics77,
@@ -2143,12 +2713,11 @@ def plot_topics_barplot(figure_path):
                                  color='black',
                                  mutation_scale=20,
                                  lw=1))
-
+    sns.despine()
     plt.savefig(os.path.join(figure_path,
                              'topic_modelling_seeds_histplot.pdf'),
                 bbox_inches='tight')
     plt.tight_layout()
-    sns.despine()
 
 
 def load_scientometrics():

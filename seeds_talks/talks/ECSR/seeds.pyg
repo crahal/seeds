@@ -1,0 +1,20 @@
+
+import numpy as np # for randomisation
+import matplotlib.pyplot as plt # for plotting
+
+def analytical_function(input, seed):
+	''' Simple analytical function: can be anything'''
+	np.random.seed(seed)
+	return input*np.random.normal()
+
+results = [] # store results
+inputs = 42 # dataset, figure path, etc.
+
+# Instead, use list of predefined, complex 'secret' seeds we provide
+with open(os.path.join( '..', 'assets', 'seed_list.txt')) as f:
+    seed_list = [int(line.rstrip('\n')) for line in f]
+
+for seed in seed_list: # simple loop; can be distributed
+	results.append(analytical_function(inputs, seed))
+
+plt.hist(results) # plot results

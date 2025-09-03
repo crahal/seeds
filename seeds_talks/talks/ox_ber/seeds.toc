@@ -1,0 +1,7 @@
+\babel@toc {english}{}\relax 
+\beamer@sectionintoc {1}{Introduction and Motivation}{1}{0}{1}
+\beamer@sectionintoc {2}{Simple Simulations}{15}{0}{2}
+\beamer@sectionintoc {3}{Machine Learning}{16}{0}{3}
+\beamer@sectionintoc {4}{Other Examples}{17}{0}{4}
+\beamer@sectionintoc {5}{Replication}{18}{0}{5}
+\beamer@sectionintoc {6}{Next Steps}{19}{0}{6}

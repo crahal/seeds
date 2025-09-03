@@ -1,0 +1,22 @@
+\begin{Verbatim}[commandchars=\\\{\}]
+
+\PYG{k+kn}{import} \PYG{n+nn}{numpy} \PYG{k}{as} \PYG{n+nn}{np} \PYG{c+c1}{\PYGZsh{} for randomisation}
+\PYG{k+kn}{import} \PYG{n+nn}{matplotlib.pyplot} \PYG{k}{as} \PYG{n+nn}{plt} \PYG{c+c1}{\PYGZsh{} for plotting}
+
+\PYG{k}{def} \PYG{n+nf}{analytical\PYGZus{}function}\PYG{p}{(}\PYG{n+nb}{input}\PYG{p}{,} \PYG{n}{seed}\PYG{p}{):}
+\PYG{+w}{	}\PYG{l+s+sd}{\PYGZsq{}\PYGZsq{}\PYGZsq{} Simple analytical function: can be anything\PYGZsq{}\PYGZsq{}\PYGZsq{}}
+	\PYG{n}{np}\PYG{o}{.}\PYG{n}{random}\PYG{o}{.}\PYG{n}{seed}\PYG{p}{(}\PYG{n}{seed}\PYG{p}{)}
+	\PYG{k}{return} \PYG{n+nb}{input}\PYG{o}{*}\PYG{n}{np}\PYG{o}{.}\PYG{n}{random}\PYG{o}{.}\PYG{n}{normal}\PYG{p}{()}
+
+\PYG{n}{results} \PYG{o}{=} \PYG{p}{[]} \PYG{c+c1}{\PYGZsh{} store results}
+\PYG{n}{inputs} \PYG{o}{=} \PYG{l+m+mi}{42} \PYG{c+c1}{\PYGZsh{} dataset, figure path, etc.}
+
+\PYG{c+c1}{\PYGZsh{} Instead, use list of predefined, complex \PYGZsq{}secret\PYGZsq{} seeds we provide}
+\PYG{k}{with} \PYG{n+nb}{open}\PYG{p}{(}\PYG{n}{os}\PYG{o}{.}\PYG{n}{path}\PYG{o}{.}\PYG{n}{join}\PYG{p}{(} \PYG{l+s+s1}{\PYGZsq{}..\PYGZsq{}}\PYG{p}{,} \PYG{l+s+s1}{\PYGZsq{}assets\PYGZsq{}}\PYG{p}{,} \PYG{l+s+s1}{\PYGZsq{}seed\PYGZus{}list.txt\PYGZsq{}}\PYG{p}{))} \PYG{k}{as} \PYG{n}{f}\PYG{p}{:}
+    \PYG{n}{seed\PYGZus{}list} \PYG{o}{=} \PYG{p}{[}\PYG{n+nb}{int}\PYG{p}{(}\PYG{n}{line}\PYG{o}{.}\PYG{n}{rstrip}\PYG{p}{(}\PYG{l+s+s1}{\PYGZsq{}}\PYG{l+s+se}{\PYGZbs{}n}\PYG{l+s+s1}{\PYGZsq{}}\PYG{p}{))} \PYG{k}{for} \PYG{n}{line} \PYG{o+ow}{in} \PYG{n}{f}\PYG{p}{]}
+
+\PYG{k}{for} \PYG{n}{seed} \PYG{o+ow}{in} \PYG{n}{seed\PYGZus{}list}\PYG{p}{:} \PYG{c+c1}{\PYGZsh{} simple loop; can be distributed}
+	\PYG{n}{results}\PYG{o}{.}\PYG{n}{append}\PYG{p}{(}\PYG{n}{analytical\PYGZus{}function}\PYG{p}{(}\PYG{n}{inputs}\PYG{p}{,} \PYG{n}{seed}\PYG{p}{))}
+
+\PYG{n}{plt}\PYG{o}{.}\PYG{n}{hist}\PYG{p}{(}\PYG{n}{results}\PYG{p}{)} \PYG{c+c1}{\PYGZsh{} plot results}
+\end{Verbatim}

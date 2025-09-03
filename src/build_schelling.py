@@ -80,22 +80,20 @@ def worker(seed, grid_size, empty_prob, threshold):
         return seed, None, []
 
 
-if __name__ == "__main__":
-    GRID_SIZE = 200
-    EMPTY_PROB = 0.3  # Probability of an empty cell
-    SAME_THRESHOLD = 0.5  # Threshold for satisfaction
-    seed_list_path = os.path.join(os.getcwd(), '..', 'assets', 'seed_list.txt')
-    with open(seed_list_path) as f:
-        seed_list = [int(line.rstrip('\n')) for line in f][0:10000]
-    all_results = []
-    num_processes = min(cpu_count(), 8)  # Adjust the number as needed
+
+def make_schelling(grid, empty_prob, threshold, seed_list, num_processes):
+
     with Pool(num_processes) as pool:
-        worker_partial = partial(worker, grid_size=GRID_SIZE, empty_prob=EMPTY_PROB, threshold=SAME_THRESHOLD)
+        worker_partial = partial(worker,
+                                 grid_size=grid,
+                                 empty_prob=empty_prob,
+                                 threshold=threshold
+                                 )
         results = []
         for seed in tqdm(seed_list, total=len(seed_list), desc="Processing seeds"):
             try:
                 result = pool.apply_async(worker_partial, args=(seed,))
-                results.append(result.get(timeout=180))  # Timeout after 60 seconds
+                results.append(result.get(timeout=20))
             except TimeoutError:
                 print(f"Timeout processing seed {seed}")
                 results.append((seed, None, []))
@@ -113,7 +111,21 @@ if __name__ == "__main__":
                     'Happy Count': steps
                 })
     df = pd.DataFrame(all_results)
-    summary = df[df['Step'] == 'Convergence'].groupby('Seed').agg({'Happy Count': 'mean'}).reset_index()
-    summary.columns = ['Seed', 'Total Steps to Converge']
-    df.to_csv(os.path.join(os.getcwd(), '..', 'data', 'schelling', 'schelling_df.csv'))
-    summary.to_csv(os.path.join(os.getcwd(), '..', 'data', 'schelling', 'schelling_summary.csv'))
+    df.to_csv(os.path.join(os.getcwd(), '..',
+                           'data',
+                           'schelling',
+                           'schelling_df_' + str(grid) + '_' + str(empty_prob) + '_' + str(threshold) + '.csv')
+              )
+
+
+if __name__ == "__main__":
+    seed_list_path = os.path.join(os.getcwd(), '..', 'assets', 'seed_list.txt')
+    with open(seed_list_path) as f:
+        seed_list = [int(line.rstrip('\n')) for line in f][0:100000]
+    all_results = []
+    print('You have %s processesors on your system' % cpu_count())
+    num_processes = min(cpu_count(), 28)
+    make_schelling(25, 0.3, 0.3, seed_list, 30)
+    make_schelling(25, 0.3, 0.5, seed_list, 30)
+    make_schelling(25, 0.5, 0.3, seed_list, 30)
+    make_schelling(25, 0.5, 0.5, seed_list, 30)

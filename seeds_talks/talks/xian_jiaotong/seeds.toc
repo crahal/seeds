@@ -1,0 +1,5 @@
+\babel@toc {english}{}\relax 
+\beamer@sectionintoc {1}{Introduction and Motivation}{1}{0}{1}
+\beamer@sectionintoc {2}{Simple Simulations}{17}{0}{2}
+\beamer@sectionintoc {3}{More Complex Replicaitons}{18}{0}{3}
+\beamer@sectionintoc {4}{Concluding Thoughts}{22}{0}{4}

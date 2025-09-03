@@ -1,0 +1,23 @@
+\begin{Verbatim}[commandchars=\\\{\}]
+
+\PYG{k+kn}{import} \PYG{n+nn}{json}\PYG{o}{,} \PYG{n+nn}{io}\PYG{o}{,} \PYG{n+nn}{imageio}\PYG{o}{,} \PYG{n+nn}{requests}
+\PYG{k+kn}{from} \PYG{n+nn}{PIL} \PYG{k+kn}{import} \PYG{n}{Image}
+
+\PYG{k}{def} \PYG{n+nf}{get\PYGZus{}cat\PYGZus{}bounded}\PYG{p}{(}\PYG{n}{url}\PYG{p}{):}
+    \PYG{n}{api\PYGZus{}ret} \PYG{o}{=} \PYG{n}{requests}\PYG{o}{.}\PYG{n}{get}\PYG{p}{(}\PYG{n}{url}\PYG{p}{)}
+    \PYG{k}{if} \PYG{n}{api\PYGZus{}ret}\PYG{o}{.}\PYG{n}{status\PYGZus{}code}\PYG{o}{==}\PYG{l+m+mi}{200}\PYG{p}{:}
+          \PYG{n}{text} \PYG{o}{=} \PYG{n}{json}\PYG{o}{.}\PYG{n}{loads}\PYG{p}{(}\PYG{n}{api\PYGZus{}ret}\PYG{o}{.}\PYG{n}{text}\PYG{p}{)}
+        \PYG{k}{while} \PYG{p}{(}\PYG{n}{text}\PYG{p}{[}\PYG{l+m+mi}{0}\PYG{p}{][}\PYG{l+s+s1}{\PYGZsq{}width\PYGZsq{}}\PYG{p}{]}\PYG{o}{\PYGZlt{}=}\PYG{l+m+mi}{400} \PYG{o+ow}{or} \PYG{n}{text}\PYG{p}{[}\PYG{l+m+mi}{0}\PYG{p}{][}\PYG{l+s+s1}{\PYGZsq{}width\PYGZsq{}}\PYG{p}{]}\PYG{o}{\PYGZgt{}=}\PYG{l+m+mi}{600}\PYG{p}{)} \PYG{o+ow}{or} \PYGZbs{}
+              \PYG{p}{(}\PYG{n}{text}\PYG{p}{[}\PYG{l+m+mi}{0}\PYG{p}{][}\PYG{l+s+s1}{\PYGZsq{}height\PYGZsq{}}\PYG{p}{]}\PYG{o}{\PYGZlt{}=}\PYG{l+m+mi}{400} \PYG{o+ow}{or} \PYG{n}{text}\PYG{p}{[}\PYG{l+m+mi}{0}\PYG{p}{][}\PYG{l+s+s1}{\PYGZsq{}height\PYGZsq{}}\PYG{p}{]}\PYG{o}{\PYGZgt{}=}\PYG{l+m+mi}{600}\PYG{p}{):}
+            \PYG{n}{api\PYGZus{}ret} \PYG{o}{=} \PYG{n}{requests}\PYG{o}{.}\PYG{n}{get}\PYG{p}{(}\PYG{n}{url}\PYG{p}{)}
+            \PYG{k}{if} \PYG{n}{api\PYGZus{}ret}\PYG{o}{.}\PYG{n}{status\PYGZus{}code}\PYG{o}{==}\PYG{l+m+mi}{200}\PYG{p}{:}
+                 \PYG{n}{text} \PYG{o}{=} \PYG{n}{json}\PYG{o}{.}\PYG{n}{loads}\PYG{p}{(}\PYG{n}{api\PYGZus{}ret}\PYG{o}{.}\PYG{n}{text}\PYG{p}{)}
+        \PYG{n}{r} \PYG{o}{=} \PYG{n}{requests}\PYG{o}{.}\PYG{n}{get}\PYG{p}{(}\PYG{n}{api\PYGZus{}text}\PYG{p}{[}\PYG{l+m+mi}{0}\PYG{p}{][}\PYG{l+s+s1}{\PYGZsq{}url\PYGZsq{}}\PYG{p}{])}
+        \PYG{k}{return} \PYG{n}{Image}\PYG{o}{.}\PYG{n}{open}\PYG{p}{(}\PYG{n}{io}\PYG{o}{.}\PYG{n}{BytesIO}\PYG{p}{(}\PYG{n}{r}\PYG{o}{.}\PYG{n}{content}\PYG{p}{))}
+
+\PYG{n}{url} \PYG{o}{=} \PYG{l+s+s1}{\PYGZsq{}https://api.thecatapi.com/v1/images/search\PYGZsq{}}
+\PYG{n}{images} \PYG{o}{=} \PYG{p}{[]}
+\PYG{k}{for} \PYG{n}{\PYGZus{}} \PYG{o+ow}{in} \PYG{n+nb}{range}\PYG{p}{(}\PYG{l+m+mi}{0}\PYG{p}{,} \PYG{l+m+mi}{50}\PYG{p}{):}
+    \PYG{n}{images}\PYG{o}{.}\PYG{n}{append}\PYG{p}{(}\PYG{n}{get\PYGZus{}cat\PYGZus{}bounded}\PYG{p}{(}\PYG{n}{url}\PYG{p}{))}
+\PYG{n}{imageio}\PYG{o}{.}\PYG{n}{mimsave}\PYG{p}{(}\PYG{l+s+s1}{\PYGZsq{}CATS.gif\PYGZsq{}}\PYG{p}{,} \PYG{n}{images}\PYG{p}{,} \PYG{n}{fps}\PYG{o}{=}\PYG{l+m+mi}{1}\PYG{p}{)}
+\end{Verbatim}

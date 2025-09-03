@@ -1,0 +1,6 @@
+\babel@toc {english}{}\relax 
+\beamer@sectionintoc {1}{Introduction and Motivation}{1}{0}{1}
+\beamer@sectionintoc {2}{ML/DL Learning Examples}{33}{0}{2}
+\beamer@sectionintoc {3}{Simple Simulations}{34}{0}{3}
+\beamer@sectionintoc {4}{More Complex Replications}{35}{0}{4}
+\beamer@sectionintoc {5}{Concluding Thoughts}{46}{0}{5}

@@ -35,11 +35,11 @@ train <- read_csv(file.path(private.data.dir, "train.csv"))
 test <- read_csv(file.path(private.data.dir, "test.csv"))
 outcomes <- colnames(train)[-1]
 
-max_seeds <- 50
+max_seeds <- 1
 for(x in 1:max_seeds) {
   cat("\r", x, "of", max_seeds, '! ') 
-  flush.console()
-  
+#  flush.console()
+  x <- 08544# original seed
   set.seed(x)
   d <- background %>%
     mutate(cm1relf = ifelse(cm1relf == 1, "Married",
@@ -118,76 +118,126 @@ for(x in 1:max_seeds) {
            gpa9, grit9, materialHardship9, eviction9, layoff9, jobTraining9) %>%
     left_join(train, by = "challengeID")
   d[apply(d[,-1],1,function(x) all(is.na(x))),"cm1ethrace"] <- "White/other"
+
   get.benchmark.predictions <- function(outcome, model = "full", data = d) {
     if(model == "full") {
-      thisFormula <- formula(paste0(outcome,
-                                    " ~ cm1ethrace + cm1relf + cm1edu + ",
-                                    outcome,"9"))
+      # Create the formula dynamically
+      thisFormula <- formula(paste0(outcome, " ~ cm1ethrace + cm1relf + cm1edu + ", outcome, "9"))
+      
+      # Perform the imputation using Amelia
       imputed <- amelia(data %>% select(challengeID, cm1ethrace, cm1relf, cm1edu, contains(outcome)),
                         m = 1,
                         p2s = 0,
-                        noms = c("cm1ethrace","cm1relf"),
+                        noms = c("cm1ethrace", "cm1relf"),
                         ords = "cm1edu",
                         idvars = "challengeID")$imputations$imp1
+      
+      # Check if the required outcome column exists in the imputed data
+      required_column <- paste0(outcome, "9")
+      if (!required_column %in% colnames(imputed)) {
+        stop(paste("Column", required_column, "does not exist in imputed data"))
+      }
+      
+      # Identify rows where all predictors are missing
+      missing_all_predictors <- apply(get_all_vars(thisFormula, data = imputed), 1, function(x) all(is.na(x[-1])))
+      ols.yhat <- logit.yhat <- rep(NA, nrow(imputed))
+      ols.yhat[missing_all_predictors] <- logit.yhat[missing_all_predictors] <- mean(imputed[,outcome], na.rm = TRUE)
+      
+      # Fit the OLS model
+      ols <- tryCatch(
+        lm(formula = thisFormula, data = imputed[!is.na(imputed[,outcome]), ]),
+        warning = function(w) {
+          message("Warning in lm: ", w)
+          return(NULL)
+        },
+        error = function(e) {
+          message("Error in lm: ", e)
+          return(NULL)
+        }
+      )
+      
+      # Extract the coefficient for the outcome predictor
+      if (!is.null(ols)) {
+        ols_summary <- coef(summary(ols))
+        if (paste0(outcome, "9") %in% rownames(ols_summary)) {
+          ols_beta <- ols_summary[paste0(outcome, "9"), "Estimate"]
+        } else {
+          message(paste("Coefficient for", paste0(outcome, "9"), "not found in the model"))
+          ols_beta <- NA
+        }
+      } else {
+        ols_beta <- NA
+      }
+      
+      # Fit a logistic regression model if the outcome is binary
+      if (length(unique(na.omit(imputed[, outcome]))) == 2) {
+        logit <- tryCatch(
+          glm(formula = thisFormula, family = binomial(link = "logit"), data = imputed[!is.na(imputed[,outcome]), ]),
+          warning = function(w) {
+            message("Warning in glm: ", w)
+            return(NULL)
+          },
+          error = function(e) {
+            message("Error in glm: ", e)
+            return(NULL)
+          }
+        )
+        
+        if (!is.null(logit)) {
+          logit_summary <- coef(summary(logit))
+          print(logit_summary)
+          if (paste0(outcome, "9") %in% rownames(logit_summary)) {
+            logit.yhat[!missing_all_predictors] <- predict(logit, newdata = imputed[!missing_all_predictors,], type = "response")
+            logit_beta <- logit_summary[paste0(outcome, "9"), "Estimate"]
+          } else {
+            message(paste("Coefficient for", paste0(outcome, "9"), "not found in the logistic model"))
+            logit_beta <- NA
+          }
+        } else {
+          logit.yhat <- rep(NA, nrow(imputed))
+          logit_beta <- NA
+        }
+      } else {
+        logit.yhat <- rep(NA, nrow(imputed))
+        logit_beta <- NA
+      }
+      
+      # Create a data frame with all predictions and relevant information
+      all_predictions <- data.frame(outcome = outcome,
+                                    challengeID = imputed$challengeID,
+                                    ols = ols.yhat,
+                                    ols_beta = ols_beta,
+                                    logit = logit.yhat,
+                                    logit_beta = logit_beta) %>%
+        mutate(ols = case_when(outcome %in% c("grit", "gpa") & ols < 1 ~ 1,
+                               outcome %in% c("grit", "gpa") & ols > 4 ~ 4,
+                               outcome %in% c("grit", "gpa") ~ ols,
+                               ols < 0 ~ 0,
+                               ols > 1 ~ 1,
+                               TRUE ~ ols),
+               logit = case_when(logit < 0 ~ 0,
+                                 logit > 1 ~ 1,
+                                 TRUE ~ as.numeric(logit)))
+      
+      return(all_predictions)
     }
-    missing_all_predictors <- apply(get_all_vars(thisFormula, data = imputed), 1, function(x) all(is.na(x[-1])))
-    ols.yhat <- logit.yhat <- rep(NA, nrow(imputed))
-    ols.yhat[missing_all_predictors] <- 
-      logit.yhat[missing_all_predictors] <- 
-      #rf.yhat[missing_all_predictors] <- 
-      mean(imputed[,outcome], na.rm = T)
-    # OLS
-    ols <- lm(formula = thisFormula,
-              data = imputed[!is.na(data[,outcome]),])
-
-    if (x == 08544) {
-      filename = sprintf("imputed_benchmark_%s.csv", outcome)
-      form = here(imputed.dir, filename)
-      write.csv(imputed %>% select(challengeID, cm1ethrace, cm1relf, cm1edu, paste0(outcome,9)),
-                file=form, row.names = FALSE)
-    }
-    
-    ols.yhat[!missing_all_predictors] <- predict(ols, newdata = imputed[!missing_all_predictors,])
-    ols.beta <- coef(summary(ols))[paste0(outcome,9),"Estimate"]
-    # Logit for binary outcomes
-    if (length(unique(na.omit(data[,outcome]))) == 2) {
-      logit <- glm(formula = thisFormula,
-                   family = binomial(link = "logit"),
-                   data = imputed[!is.na(data[,outcome]),])
-      logit.yhat[!missing_all_predictors] <- predict(logit, newdata = imputed[!missing_all_predictors,], type = "response")
-      logit.beta <- coef(summary(logit))[paste0(outcome,9),"Estimate"]
-    } else {
-      # If not binary, make all logit predictions NA
-      logit.yhat <- NA
-      logit.beta <- NA
-    }
-    all_predictions <- data.frame(outcome = outcome,
-                                  challengeID = imputed$challengeID,
-                                  ols = ols.yhat,
-                                  ols_beta = ols.beta,
-                                  logit = logit.yhat,
-                                  logit_beta = logit.beta#,
-                                  #rf = rf.yhat
-                                  ) %>%
-      mutate(ols = case_when(outcome %in% c("grit","gpa") & ols < 1 ~ 1,
-                             outcome %in% c("grit","gpa") & ols > 4 ~ 4,
-                             outcome %in% c("grit","gpa") ~ ols,
-                             ols < 0 ~ 0,
-                             ols > 1 ~ 1,
-                             T ~ ols),
-             logit = case_when(logit < 0 ~ 0,
-                               logit > 1 ~ 1,
-                               T ~ as.numeric(logit)),
-             )
-    return(all_predictions)
   }
+  
+  benchmarks <- data.frame() 
 
-  benchmarks <- foreach(thisOutcome = outcomes, .combine = "rbind") %do% {
-    foreach(predictor_set = c("full"), .combine = "rbind") %do% {
-      get.benchmark.predictions(thisOutcome, model = predictor_set) %>%
+  for (thisOutcome in outcomes) {
+    for (predictor_set in c("full")) {
+      print(thisOutcome)
+      
+      result <- get.benchmark.predictions(thisOutcome, model = predictor_set) %>%
         mutate(predictors = predictor_set)
+      
+      # Append the result to the benchmarks data frame
+      benchmarks <- rbind(benchmarks, result)
     }
   }
+  
+  print('here?')
   benchmarks_long <- benchmarks %>%
     select(challengeID, outcome, ols, logit,# rf,
            predictors) %>%
