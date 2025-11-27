@@ -28,7 +28,6 @@ from typing import Dict, Tuple, List, Optional
 import numpy as np
 import pandas as pd
 
-from sklearn.experimental import enable_iterative_imputer  # noqa: F401
 from sklearn.impute import IterativeImputer
 from sklearn.model_selection import train_test_split, KFold
 from econml.dml import CausalForestDML
