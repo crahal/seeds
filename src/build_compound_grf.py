@@ -267,6 +267,6 @@ def run_pipeline(n_impute_seeds=1, n_sample_seeds=1, n_model_seeds=1,
     return results_df
 
 if __name__ == "__main__":
-    run_pipeline(n_impute_seeds=1, n_sample_seeds=1, n_model_seeds=1,
+    run_pipeline(n_impute_seeds=10000, n_sample_seeds=10000, n_model_seeds=10000,
                  out_path="../data/compound/brand_ate_stability_all", prop_holdout=0.3)
     
