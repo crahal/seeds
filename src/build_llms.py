@@ -64,6 +64,63 @@ def make_context(respondent: str, target: str) -> str:
     )
 
 
+def generate_labels_for_all_pairs(
+    client,
+    model_name: str,
+    system_prompt: str,
+    allowed_words_dem: List[str],
+    allowed_words_rep: List[str],
+    temperature: float,
+    top_p: float,
+    seed: int,
+    rng: random.Random,
+    shuffle_lists: bool = True,
+) -> List[str]:
+    """
+    Helper to query all four respondent/target combinations.
+    When shuffle_lists is False the provided word order is preserved.
+    """
+
+    def maybe_shuffle(words: List[str]) -> List[str]:
+        words_copy = words[:]
+        if shuffle_lists:
+            rng.shuffle(words_copy)
+        return words_copy
+
+    def ask_model(respondent: str, target: str, allowed_words: List[str]) -> str:
+        word_list = maybe_shuffle(allowed_words)
+        ctx = make_context(respondent, target)
+        prompt = f"{ctx}\n\nWords: {', '.join(word_list)}"
+
+        resp = client.chat.completions.create(
+            model=model_name,
+            temperature=temperature,
+            top_p=top_p,
+            seed=seed,
+            frequency_penalty=0.2,
+            response_format={"type": "json_object"},
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": prompt},
+            ],
+        )
+
+        try:
+            label = json.loads(resp.choices[0].message.content)["label"]
+        except Exception:
+            label = allowed_words[0]
+        if label not in allowed_words:
+            label = allowed_words[0]
+        return label
+
+    return [
+        ask_model("rep", "dem", allowed_words_dem),
+        ask_model("dem", "rep", allowed_words_rep),
+        ask_model("dem", "dem", allowed_words_dem),
+        ask_model("rep", "rep", allowed_words_rep),
+    ]
+
+
 def main():
     import csv
     import json
@@ -120,121 +177,18 @@ def main():
         for seed in tqdm(seeds, desc="seeds", leave=False):
             rng = random.Random(seed)
 
-            # ===============================================================
-            # 1) Republican describing Democrats (rep -> dem)
-            # ===============================================================
-            shuffled_dem_1 = allowed_words_dem[:]
-            rng.shuffle(shuffled_dem_1)
-
-            ctx_1 = make_context("rep", "dem")
-            prompt_1 = f"{ctx_1}\n\nWords: {', '.join(shuffled_dem_1)}"
-
-            resp_1 = client.chat.completions.create(
-                model=model_name,
+            label_1, label_2, label_3, label_4 = generate_labels_for_all_pairs(
+                client=client,
+                model_name=model_name,
+                system_prompt=system_prompt,
+                allowed_words_dem=allowed_words_dem,
+                allowed_words_rep=allowed_words_rep,
                 temperature=temperature,
                 top_p=top_p,
                 seed=seed,
-                frequency_penalty=0.2,
-                response_format={"type": "json_object"},
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": prompt_1},
-                ],
+                rng=rng,
+                shuffle_lists=True,
             )
-
-            try:
-                label_1 = json.loads(resp_1.choices[0].message.content)["label"]
-            except Exception:
-                label_1 = allowed_words_dem[0]
-            if label_1 not in allowed_words_dem:
-                label_1 = allowed_words_dem[0]
-
-            # ===============================================================
-            # 2) Democrat describing Republicans (dem -> rep)
-            # ===============================================================
-            shuffled_rep_2 = allowed_words_rep[:]
-            rng.shuffle(shuffled_rep_2)
-
-            ctx_2 = make_context("dem", "rep")
-            prompt_2 = f"{ctx_2}\n\nWords: {', '.join(shuffled_rep_2)}"
-
-            resp_2 = client.chat.completions.create(
-                model=model_name,
-                temperature=temperature,
-                top_p=top_p,
-                seed=seed,
-                frequency_penalty=0.2,
-                response_format={"type": "json_object"},
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": prompt_2},
-                ],
-            )
-
-            try:
-                label_2 = json.loads(resp_2.choices[0].message.content)["label"]
-            except Exception:
-                label_2 = allowed_words_rep[0]
-            if label_2 not in allowed_words_rep:
-                label_2 = allowed_words_rep[0]
-
-            # ===============================================================
-            # 3) Democrat describing Democrats (dem -> dem)
-            # ===============================================================
-            shuffled_dem_3 = allowed_words_dem[:]
-            rng.shuffle(shuffled_dem_3)
-
-            ctx_3 = make_context("dem", "dem")
-            prompt_3 = f"{ctx_3}\n\nWords: {', '.join(shuffled_dem_3)}"
-
-            resp_3 = client.chat.completions.create(
-                model=model_name,
-                temperature=temperature,
-                top_p=top_p,
-                seed=seed,
-                frequency_penalty=0.2,
-                response_format={"type": "json_object"},
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": prompt_3},
-                ],
-            )
-
-            try:
-                label_3 = json.loads(resp_3.choices[0].message.content)["label"]
-            except Exception:
-                label_3 = allowed_words_dem[0]
-            if label_3 not in allowed_words_dem:
-                label_3 = allowed_words_dem[0]
-
-            # ===============================================================
-            # 4) Republican describing Republicans (rep -> rep)
-            # ===============================================================
-            shuffled_rep_4 = allowed_words_rep[:]
-            rng.shuffle(shuffled_rep_4)
-
-            ctx_4 = make_context("rep", "rep")
-            prompt_4 = f"{ctx_4}\n\nWords: {', '.join(shuffled_rep_4)}"
-
-            resp_4 = client.chat.completions.create(
-                model=model_name,
-                temperature=temperature,
-                top_p=top_p,
-                seed=seed,
-                frequency_penalty=0.2,
-                response_format={"type": "json_object"},
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": prompt_4},
-                ],
-            )
-
-            try:
-                label_4 = json.loads(resp_4.choices[0].message.content)["label"]
-            except Exception:
-                label_4 = allowed_words_rep[0]
-            if label_4 not in allowed_words_rep:
-                label_4 = allowed_words_rep[0]
 
             # ===============================================================
             # store compact row (no raw JSON, no prompt_order)
@@ -311,113 +265,18 @@ def run_fixed_seed_temp0_experiment():
     for run_id in range(runs):
         rng = random.Random(seed)
 
-        # 1) Republican describing Democrats (rep -> dem)
-        shuffled_dem_1 = allowed_words_dem[:]
-        rng.shuffle(shuffled_dem_1)
-
-        ctx_1 = make_context("rep", "dem")
-        prompt_1 = f"{ctx_1}\n\nWords: {', '.join(shuffled_dem_1)}"
-
-        resp_1 = client.chat.completions.create(
-            model=model_name,
+        label_1, label_2, label_3, label_4 = generate_labels_for_all_pairs(
+            client=client,
+            model_name=model_name,
+            system_prompt=system_prompt,
+            allowed_words_dem=allowed_words_dem,
+            allowed_words_rep=allowed_words_rep,
             temperature=temperature,
             top_p=top_p,
             seed=seed,
-            frequency_penalty=0.2,
-            response_format={"type": "json_object"},
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": prompt_1},
-            ],
+            rng=rng,
+            shuffle_lists=True,
         )
-
-        try:
-            label_1 = json.loads(resp_1.choices[0].message.content)["label"]
-        except Exception:
-            label_1 = allowed_words_dem[0]
-        if label_1 not in allowed_words_dem:
-            label_1 = allowed_words_dem[0]
-
-        # 2) Democrat describing Republicans (dem -> rep)
-        shuffled_rep_2 = allowed_words_rep[:]
-        rng.shuffle(shuffled_rep_2)
-
-        ctx_2 = make_context("dem", "rep")
-        prompt_2 = f"{ctx_2}\n\nWords: {', '.join(shuffled_rep_2)}"
-
-        resp_2 = client.chat.completions.create(
-            model=model_name,
-            temperature=temperature,
-            top_p=top_p,
-            seed=seed,
-            frequency_penalty=0.2,
-            response_format={"type": "json_object"},
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": prompt_2},
-            ],
-        )
-
-        try:
-            label_2 = json.loads(resp_2.choices[0].message.content)["label"]
-        except Exception:
-            label_2 = allowed_words_rep[0]
-        if label_2 not in allowed_words_rep:
-            label_2 = allowed_words_rep[0]
-
-        # 3) Democrat describing Democrats (dem -> dem)
-        shuffled_dem_3 = allowed_words_dem[:]
-        rng.shuffle(shuffled_dem_3)
-
-        ctx_3 = make_context("dem", "dem")
-        prompt_3 = f"{ctx_3}\n\nWords: {', '.join(shuffled_dem_3)}"
-
-        resp_3 = client.chat.completions.create(
-            model=model_name,
-            temperature=temperature,
-            top_p=top_p,
-            seed=seed,
-            frequency_penalty=0.2,
-            response_format={"type": "json_object"},
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": prompt_3},
-            ],
-        )
-
-        try:
-            label_3 = json.loads(resp_3.choices[0].message.content)["label"]
-        except Exception:
-            label_3 = allowed_words_dem[0]
-        if label_3 not in allowed_words_dem:
-            label_3 = allowed_words_dem[0]
-
-        # 4) Republican describing Republicans (rep -> rep)
-        shuffled_rep_4 = allowed_words_rep[:]
-        rng.shuffle(shuffled_rep_4)
-
-        ctx_4 = make_context("rep", "rep")
-        prompt_4 = f"{ctx_4}\n\nWords: {', '.join(shuffled_rep_4)}"
-
-        resp_4 = client.chat.completions.create(
-            model=model_name,
-            temperature=temperature,
-            top_p=top_p,
-            seed=seed,
-            frequency_penalty=0.2,
-            response_format={"type": "json_object"},
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": prompt_4},
-            ],
-        )
-
-        try:
-            label_4 = json.loads(resp_4.choices[0].message.content)["label"]
-        except Exception:
-            label_4 = allowed_words_rep[0]
-        if label_4 not in allowed_words_rep:
-            label_4 = allowed_words_rep[0]
 
         rows.append({
             "run_id": run_id,
@@ -438,6 +297,83 @@ def run_fixed_seed_temp0_experiment():
             writer.writerows(rows)
 
 
+def run_fixed_seed_temp0_no_shuffle_experiment():
+    """
+    Same setup as run_fixed_seed_temp0_experiment but preserves the
+    original word order (no list shuffling). Results are written to
+    results_fixed_seed_temp0_no_shuffle.csv.
+    """
+    import csv
+    import json
+    import random
+
+    api_key = load_api_key()
+    client = OpenAI(api_key=api_key)
+    model_name = "gpt-4o-mini-2024-07-18"
+
+    allowed_words_dem = [
+        "liberal", "young", "progressive", "poor", "open-minded", "female",
+        "educated", "intelligent", "pro-choice", "compassionate", "caring",
+        "socialist", "communist", "athiest",
+    ]
+
+    allowed_words_rep = [
+        "conservative", "white", "religious", "racist", "rich",
+        "old", "christian", "male", "homophobic", "patriotic",
+        "ignorant", "traditional", "selfish", "responsible",
+    ]
+
+    system_prompt = (
+        "You are given a list of words that a respondent uses to describe "
+        "supporters of a political group.\n\n"
+        "Your task:\n"
+        "1. Choose exactly ONE word from that list.\n"
+        "2. The chosen word MUST be exactly one of the words from that list.\n"
+        "3. Output exactly a JSON object of the form {\"label\": \"<word>\"}.\n"
+        "4. Output NOTHING else."
+    )
+
+    temperature = 0.0
+    top_p = 0.95
+    runs = 1000
+    seed = get_seed_list()[0]
+    rows = []
+
+    for run_id in range(runs):
+        rng = random.Random(seed)
+        label_1, label_2, label_3, label_4 = generate_labels_for_all_pairs(
+            client=client,
+            model_name=model_name,
+            system_prompt=system_prompt,
+            allowed_words_dem=allowed_words_dem,
+            allowed_words_rep=allowed_words_rep,
+            temperature=temperature,
+            top_p=top_p,
+            seed=seed,
+            rng=rng,
+            shuffle_lists=False,
+        )
+
+        rows.append({
+            "run_id": run_id,
+            "temperature": temperature,
+            "top_p": top_p,
+            "seed": seed,
+            "rep_to_dem_label": label_1,
+            "dem_to_rep_label": label_2,
+            "dem_to_dem_label": label_3,
+            "rep_to_rep_label": label_4,
+        })
+
+    if rows:
+        fieldnames = list(rows[0].keys())
+        with open("results_fixed_seed_temp0_no_shuffle.csv", "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(rows)
+
+
 if __name__ == "__main__":
     main()
     run_fixed_seed_temp0_experiment()
+    run_fixed_seed_temp0_no_shuffle_experiment()
