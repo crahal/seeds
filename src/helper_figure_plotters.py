@@ -31,8 +31,9 @@ from matplotlib.ticker import MaxNLocator
 def plot_three_simple_examples(figure_path,
                                figsize,
                                colors=['#001c54', '#E89818', '#8b0000'],
-                               fill_color=(254, 208, 126, 10 / 255),
+                               fill_color=(254 / 255, 208 / 255, 126 / 255, 10 / 255),
                                ):
+    k_formatter = ticker.FuncFormatter(lambda x, pos: f'{x / 1000:g}k')
     df_sir = pd.read_csv(os.path.join(os.getcwd(),
                                       '..',
                                       'data',
@@ -63,10 +64,10 @@ def plot_three_simple_examples(figure_path,
                                          )
 
     fig = plt.figure(figsize=figsize)
-    gs = fig.add_gridspec(2, 2, height_ratios=[1, 1])
+    gs = fig.add_gridspec(3, 1)
     ax1 = fig.add_subplot(gs[0, 0])
-    ax2 = fig.add_subplot(gs[0, 1])
-    ax3 = fig.add_subplot(gs[1, :])  # spans both columns
+    ax2 = fig.add_subplot(gs[1, 0])
+    ax3 = fig.add_subplot(gs[2, 0])
 
     letter_fontsize = 24
     label_fontsize = 18
@@ -117,6 +118,7 @@ def plot_three_simple_examples(figure_path,
     ax2.set_ylabel(r'Estimate of $\mathrm{\pi}$', fontsize=17)
     ax2.tick_params(axis='both', which='major', labelsize=14,
                     width=1, length=8)
+    ax2.xaxis.set_major_formatter(k_formatter)
     legend_elements2 = [
         Line2D([0], [0], color=colors[2], linestyle='--',
                label=r'Max', lw=2),
@@ -158,6 +160,7 @@ def plot_three_simple_examples(figure_path,
                edgecolor=(0, 0, 0, 1), ncols=1
                )
     ax3.set_xlim(0, 1000000)
+    ax3.xaxis.set_major_formatter(k_formatter)
     ax3.set_ylabel('Number of 32-bit collisions', fontsize=17)
     ax3.set_xlabel('Sample size', fontsize=17)
 
@@ -204,6 +207,7 @@ def plot_three_simple_examples(figure_path,
     ax3.set_title('c.', loc='left', fontsize=letter_fontsize, y=1.0, fontweight='bold')
 
     for ax in [ax1, ax2, ax3]:
+        ax.set_box_aspect(1)
         ax.grid(which="both", linestyle='--', alpha=0.225)
         ax.set_zorder(3)
         ax.set_axisbelow(True)
@@ -211,9 +215,9 @@ def plot_three_simple_examples(figure_path,
         ax.xaxis.set_major_locator(MaxNLocator(nbins=6, prune='both'))  # ~5 ticks excluding edges
         ax.yaxis.set_major_locator(MaxNLocator(nbins=6, prune='both'))
 
-    sns.despine(ax=ax1)
-    sns.despine(ax=ax2)
-    sns.despine(ax=ax3)
+#    sns.despine(ax=ax1)
+#    sns.despine(ax=ax2)
+#    sns.despine(ax=ax3)
     sns.despine(ax=ax3_inset, left=True, right=True, top=True)
     sns.despine(ax=ax3_twin, left=True, right=True, top=True)
 
@@ -221,6 +225,7 @@ def plot_three_simple_examples(figure_path,
     filename = 'three_simple_examples'
     plt.savefig(os.path.join(figure_path, filename + '.pdf'),
                 bbox_inches='tight')
+    
 
 
 def plot_new_scientometrics():
@@ -234,7 +239,6 @@ def plot_new_scientometrics():
     # - Saves output to ../figures/scientometrics
 
     import os
-    import math
     import numpy as np
     import pandas as pd
     import matplotlib.pyplot as plt
@@ -2707,6 +2711,128 @@ def mca_plotter(figure_path):
 #    inset_ax.set_title('.', loc='left', fontsize=letter_fontsize - 8, y=1.035, x=-0.12)
     sns.despine()
     plt.savefig(os.path.join(figure_path, 'mcs_seeds.pdf'), bbox_inches='tight')
+
+
+def plot_mcs_single(merged_csv_path, figsize=(8, 8), colors=None, title='a.', ax=None):
+    """
+    Plot min/median/max of merged MCS specification results as a single square panel.
+    """
+    colors = colors or ['#001c54', '#E89818']
+    df = pd.read_csv(merged_csv_path, index_col=False)
+    df = df.apply(pd.to_numeric, errors='coerce')
+
+    min_series = df.min(axis=1).sort_values().reset_index(drop=True)
+    max_series = df.max(axis=1).sort_values().reset_index(drop=True)
+    med_series = df.median(axis=1).sort_values().reset_index(drop=True)
+
+    context = {'font.family': 'Helvetica', 'text.usetex': False}
+    with mpl.rc_context(context):
+        if ax is None:
+            fig, ax = plt.subplots(figsize=figsize)
+        else:
+            fig = ax.figure
+
+        ax.plot(min_series.index, min_series, color=colors[1], linestyle='-', alpha=0.8)
+        ax.plot(max_series.index, max_series, color=colors[1], linestyle='-', alpha=0.8)
+        ax.plot(med_series.index, med_series, color=colors[0], linestyle='--', alpha=0.8)
+        ax.fill_between(min_series.index, min_series, max_series, color=colors[1], alpha=0.075)
+        ax.hlines(y=0, xmin=ax.get_xlim()[0], xmax=ax.get_xlim()[1],
+                  color='k', linewidth=1, linestyle='--', alpha=0.5)
+
+        legend_elements = [
+            Line2D([0], [0], color=colors[0], lw=1, linestyle='--', label='Median', alpha=0.7),
+            Line2D([0], [0], color=colors[1], lw=1, linestyle='-', label='Bounds', alpha=0.7),
+        ]
+        ax.legend(handles=legend_elements, loc='upper left', frameon=True,
+                  fontsize=14, framealpha=1, facecolor='w',
+                  edgecolor=(0, 0, 0, 1))
+
+        ax.set_ylabel('Effect Size (beta_hat)', fontsize=18)
+        ax.set_xlabel('Specification (n)', fontsize=18)
+        ax.tick_params(axis='both', which='major', labelsize=14)
+        ax.grid(which='both', linestyle='--', alpha=0.225)
+        ax.set_axisbelow(True)
+        ax.set_box_aspect(1)
+        ax.set_title(title, loc='left', fontsize=24, fontweight='bold', y=1.0)
+        sns.despine()
+    return fig, ax
+
+
+def plot_mcs_pair(merged_csv_path, figsize=(14, 8), colors=None, title_a='a.', title_b='b.'):
+    """
+    Plot MCS min/median/max (panel a) and distribution of all effects (panel b).
+    """
+    colors = colors or ['#001c54', '#E89818', '#8b0000']
+    fill_color = (254 / 255, 208 / 255, 126 / 255, 10 / 255)
+    df = pd.read_csv(merged_csv_path, index_col=False)
+    df = df.apply(pd.to_numeric, errors='coerce')
+
+    min_series = df.min(axis=1).sort_values().reset_index(drop=True)
+    max_series = df.max(axis=1).sort_values().reset_index(drop=True)
+    med_series = df.median(axis=1).sort_values().reset_index(drop=True)
+    all_vals = df.stack().dropna().values
+
+    context = {
+        'font.family': 'Helvetica',
+        'text.usetex': False,
+        'axes.unicode_minus': False,
+        'mathtext.fontset': 'dejavusans',
+    }
+    with mpl.rc_context(context):
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=figsize, constrained_layout=True)
+
+        # Panel a
+        ax1.plot(min_series.index, min_series, color=colors[1], linestyle='-', alpha=0.8)
+        ax1.plot(max_series.index, max_series, color=colors[1], linestyle='-', alpha=0.8)
+        ax1.plot(med_series.index, med_series, color=colors[0], linestyle='--', alpha=0.8)
+        ax1.fill_between(min_series.index, min_series, max_series, color=fill_color)
+        ax1.hlines(y=0, xmin=ax1.get_xlim()[0], xmax=ax1.get_xlim()[1],
+                   color='k', linewidth=1, linestyle='--', alpha=0.5)
+        legend_elements = [
+            Line2D([0], [0], color=colors[0], lw=1, linestyle='--', label='Median', alpha=0.7),
+            Line2D([0], [0], color=colors[1], lw=1, linestyle='-', label='Bounds', alpha=0.7),
+        ]
+        ax1.legend(handles=legend_elements, loc='upper left', frameon=True,
+                   fontsize=14, framealpha=1, facecolor='w',
+                   edgecolor=(0, 0, 0, 1))
+        ax1.set_ylabel(r'Effect Size ($\hat{\beta}$)', fontsize=18)
+        ax1.set_xlabel('Specification (n)', fontsize=18)
+        ax1.tick_params(axis='both', which='major', labelsize=14)
+        ax1.grid(which='both', linestyle='--', alpha=0.225)
+        ax1.set_axisbelow(True)
+        ax1.set_box_aspect(1)
+        ax1.set_title(title_a, loc='left', fontsize=24, fontweight='bold', y=1.0)
+
+        # Panel b
+        hist_color = colors[0]
+        kde_color = colors[2]
+        ax2.hist(all_vals, bins=50, color=hist_color, alpha=0.6, edgecolor='k', density=True, label='Histogram')
+        sns.kdeplot(all_vals, ax=ax2, color=kde_color, lw=1.8, label='KDE')
+        ax2.tick_params(axis='both', which='major', labelsize=14)
+        ax2.set_xlabel(r'Effect Size ($\hat{\beta}$)', fontsize=18)
+        ax2.set_ylabel('Density', fontsize=18)
+        ax2.grid(which='both', linestyle='--', alpha=0.225)
+        ax2.set_axisbelow(True)
+        ax2.set_box_aspect(1)
+        ax2.set_title(title_b, loc='left', fontsize=24, fontweight='bold', y=1.0)
+        ax2.legend(loc='center left', frameon=True, fontsize=12, framealpha=1, facecolor='w',
+                   edgecolor=(0, 0, 0, 1))
+
+        mu = np.nanmean(all_vals)
+        sigma = np.nanstd(all_vals)
+        ax2.set_ylim(0, 11)
+        y_annot = 10.25
+        ax2.annotate(r'$\mu$ = ' + f"{mu:+.3f}" + r', $\sigma$ = ' + f"{sigma:.3f}",
+                     xy=(mu, y_annot - 0.3), xytext=(mu, y_annot),
+                     xycoords='data',
+                     fontsize=14, ha='center', va='bottom',
+                     bbox=dict(boxstyle='round,pad=0.35', fc='white'),
+                     arrowprops=dict(arrowstyle='-[, widthB=8, lengthB=1', lw=1.0))
+
+        sns.despine()
+        fig.savefig(os.path.join(os.getcwd(), '..', 'figures', 'mcs_pair.pdf'),
+                    bbox_inches='tight')
+    return fig, (ax1, ax2)
 
 
 def buffons_plotter(figure_path):
