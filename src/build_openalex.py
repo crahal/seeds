@@ -174,7 +174,7 @@ def get_domain_year_counts(filepath):
         fieldnames = ['year', 'domain', 'count']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writeheader()
-        for year in tqdm(range(1750, 2025)):
+        for year in tqdm(range(1750, 2026)):
             for domain in range(1, 5):
                 try:
                     api_return = requests.get(
@@ -197,7 +197,7 @@ def get_year_counts(filepath):
         fieldnames = ['year', 'count']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writeheader()
-        for year in tqdm(range(1750, 2025)):
+        for year in tqdm(range(1750, 2026)):
             api_return = requests.get(BASE + f'works?filter=publication_year:{year}')
             if api_return.status_code == 200:
                 writer.writerow({'year': year,
