@@ -150,7 +150,7 @@ private.data.dir <- file.path(getwd(), "..", "data", "mcs")
 data <- read.csv(file.path(private.data.dir, "1_3_prep_mcs_data.csv"), header = TRUE, sep = ",")
 
 seed_list <- as.integer(readLines(file.path("..", "assets", "seed_list.txt")))
-n_iters <- 10
+n_iters <- 1000
 seeds_to_use <- head(seed_list, n_iters)
 start_time <- Sys.time()
 
