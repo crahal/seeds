@@ -1,5 +1,4 @@
 import os
-import numpy as np
 import json
 import random
 from pathlib import Path
@@ -123,9 +122,6 @@ def generate_labels_for_all_pairs(
 
 def main():
     import csv
-    import json
-    import random
-    from tqdm import tqdm
 
     api_key = load_api_key()
     client = OpenAI(api_key=api_key)
@@ -169,52 +165,55 @@ def main():
 
     temperatures = [0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
     top_p = 0.95
-    seeds = get_seed_list()[0:1000]
+    seeds = get_seed_list()[0:10000]
 
-    rows = []
+    out_dir = Path(__file__).resolve().parent.parent / "data" / "llms"
+    out_dir.mkdir(parents=True, exist_ok=True)
 
-    for temperature in tqdm(temperatures, desc="temperatures"):
-        for seed in tqdm(seeds, desc="seeds", leave=False):
-            rng = random.Random(seed)
+    def run_experiment(shuffle_lists: bool, filename: str) -> None:
+        output_path = out_dir / filename
+#        if output_path.exists():
+#            print(f"{output_path} exists; skipping.")
+#            return
 
-            label_1, label_2, label_3, label_4 = generate_labels_for_all_pairs(
-                client=client,
-                model_name=model_name,
-                system_prompt=system_prompt,
-                allowed_words_dem=allowed_words_dem,
-                allowed_words_rep=allowed_words_rep,
-                temperature=temperature,
-                top_p=top_p,
-                seed=seed,
-                rng=rng,
-                shuffle_lists=True,
-            )
+        rows = []
 
-            # ===============================================================
-            # store compact row (no raw JSON, no prompt_order)
-            # ===============================================================
+        for temperature in tqdm(temperatures, desc="temperatures"):
+            for seed in tqdm(seeds, desc="seeds", leave=False):
+                rng = random.Random(seed)
 
-            rows.append({
-                "temperature": temperature,
-                "top_p": top_p,
-                "seed": seed,
+                label_1, label_2, label_3, label_4 = generate_labels_for_all_pairs(
+                    client=client,
+                    model_name=model_name,
+                    system_prompt=system_prompt,
+                    allowed_words_dem=allowed_words_dem,
+                    allowed_words_rep=allowed_words_rep,
+                    temperature=temperature,
+                    top_p=top_p,
+                    seed=seed,
+                    rng=rng,
+                    shuffle_lists=shuffle_lists,
+                )
 
-                "rep_to_dem_label": label_1,
-                "dem_to_rep_label": label_2,
-                "dem_to_dem_label": label_3,
-                "rep_to_rep_label": label_4,
-            })
+                rows.append({
+                    "temperature": temperature,
+                    "top_p": top_p,
+                    "seed": seed,
+                    "rep_to_dem_label": label_1,
+                    "dem_to_rep_label": label_2,
+                    "dem_to_dem_label": label_3,
+                    "rep_to_rep_label": label_4,
+                })
 
-    # ---------------------------------------------------------
-    # write CSV
-    # ---------------------------------------------------------
+        if rows:
+            fieldnames = list(rows[0].keys())
+            with output_path.open("w", newline="", encoding="utf-8") as f:
+                writer = csv.DictWriter(f, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerows(rows)
 
-    if rows:
-        fieldnames = list(rows[0].keys())
-        with open("results.csv", "w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames)
-            writer.writeheader()
-            writer.writerows(rows)
+    run_experiment(shuffle_lists=True, filename="results_shuffled.csv")
+    run_experiment(shuffle_lists=False, filename="results_noshuffled.csv")
 
 
 # ----------------------------------------------------------------------
@@ -223,7 +222,6 @@ def main():
 # ----------------------------------------------------------------------
 def run_fixed_seed_temp0_experiment():
     import csv
-    import json
     import random
 
     api_key = load_api_key()
@@ -291,7 +289,7 @@ def run_fixed_seed_temp0_experiment():
 
     if rows:
         fieldnames = list(rows[0].keys())
-        with open("results_fixed_seed_temp0.csv", "w", newline="", encoding="utf-8") as f:
+        with open("../data/llms/results_fixed_seed_temp0.csv", "w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
             writer.writerows(rows)
@@ -304,7 +302,6 @@ def run_fixed_seed_temp0_no_shuffle_experiment():
     results_fixed_seed_temp0_no_shuffle.csv.
     """
     import csv
-    import json
     import random
 
     api_key = load_api_key()
@@ -367,7 +364,7 @@ def run_fixed_seed_temp0_no_shuffle_experiment():
 
     if rows:
         fieldnames = list(rows[0].keys())
-        with open("results_fixed_seed_temp0_no_shuffle.csv", "w", newline="", encoding="utf-8") as f:
+        with open("../data/llms/results_fixed_seed_temp0_no_shuffle.csv", "w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
             writer.writerows(rows)
@@ -375,5 +372,3 @@ def run_fixed_seed_temp0_no_shuffle_experiment():
 
 if __name__ == "__main__":
     main()
-    run_fixed_seed_temp0_experiment()
-    run_fixed_seed_temp0_no_shuffle_experiment()
