@@ -166,4 +166,6 @@ figures/
 src/deprecated
 /keys/
 /assets/seeds_talks
-idea/
+idea/data/
+data/*
+data/
