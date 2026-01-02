@@ -113,25 +113,25 @@ def main():
                        transform=transform)
     dataset2 = datasets.MNIST('../data', train=False,
                        transform=transform)
-#    number_seeds = 10000
-#    seed_results = []
-#    seed_list_path = os.path.join(os.getcwd(), '..', 'assets', 'seed_list.txt')
-#    with open(seed_list_path) as f:
-#        seed_list = [int(line.rstrip('\n')) for line in f][0:number_seeds]
-#    for seed in tqdm(seed_list):
-#        torch.manual_seed(seed)
-#        train_loader = torch.utils.data.DataLoader(dataset1,**train_kwargs)
-#        test_loader = torch.utils.data.DataLoader(dataset2, **test_kwargs)
-#        model = Net().to(device)
-#        optimizer = optim.Adadelta(model.parameters(), lr=args.lr)
-##        scheduler = StepLR(optimizer, step_size=1, gamma=args.gamma)
-#        for epoch in range(1, args.epochs + 1):
-#            train(args, model, device, train_loader, optimizer, epoch)
-#            seed_results.append(test(model, device, test_loader))
-#    seed_results = pd.DataFrame(seed_results, columns=['correct'])
-#    seed_results.to_csv(os.path.join(os.getcwd(), '..', 'data', 'MNIST',
-#                                     'results', 'mnist_results.csv'),
-#                        index=False)
+    number_seeds = 10000
+    seed_results = []
+    seed_list_path = os.path.join(os.getcwd(), '..', 'assets', 'seed_list.txt')
+    with open(seed_list_path) as f:
+        seed_list = [int(line.rstrip('\n')) for line in f][0:number_seeds]
+    for seed in tqdm(seed_list):
+        torch.manual_seed(seed)
+        train_loader = torch.utils.data.DataLoader(dataset1,**train_kwargs)
+        test_loader = torch.utils.data.DataLoader(dataset2, **test_kwargs)
+        model = Net().to(device)
+        optimizer = optim.Adadelta(model.parameters(), lr=args.lr)
+#        scheduler = StepLR(optimizer, step_size=1, gamma=args.gamma)
+        for epoch in range(1, args.epochs + 1):
+            train(args, model, device, train_loader, optimizer, epoch)
+            seed_results.append(test(model, device, test_loader))
+    seed_results = pd.DataFrame(seed_results, columns=['correct'])
+    seed_results.to_csv(os.path.join(os.getcwd(), '..', 'data', 'MNIST',
+                                     'results', 'mnist_results.csv'),
+                        index=False)
 
     seed_results = []
     for seed in [42, 123]:
