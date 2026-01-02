@@ -6,6 +6,8 @@ import numpy as np
 from scipy.optimize import minimize
 from sklearn.model_selection import KFold
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score
+import statsmodels.api as sm
 
 
 def wrangle_titanic(train_df):
@@ -117,6 +119,29 @@ def get_predictions(X_train, Y_train, X_test, Y_test, model_seed):
     return score_holder
 
 
+def get_predictions_logistic(X_train, Y_train, X_test, Y_test):
+    """
+    Deterministic logistic regression via statsmodels (no per-model seed).
+    Returns R2/IMV in the same format as get_predictions.
+    """
+    X_train_sm = sm.add_constant(X_train, has_constant="add")
+    X_test_sm = sm.add_constant(X_test, has_constant="add")
+    try:
+        model = sm.Logit(Y_train, X_train_sm)
+        res = model.fit(disp=False, maxiter=250)
+        Y_pred_proba = res.predict(X_test_sm)
+    except Exception:
+        # Fallback to uniform probability if convergence fails
+        Y_pred_proba = np.full_like(Y_test, fill_value=np.mean(Y_train), dtype=float)
+
+    scores = get_scores(Y_test, Y_pred_proba, Y_train)
+    return pd.DataFrame(
+        list(zip(scores)),
+        columns=['LR'],
+        index=['R2', 'IMV']
+    )
+
+
 def process_seed(folding_seed, X, y, n_fold, seed_list):
     skf = KFold(n_splits=n_fold, random_state=folding_seed, shuffle=True)
     results = []
@@ -142,6 +167,70 @@ def process_seed(folding_seed, X, y, n_fold, seed_list):
     return results
 
 
+def process_seed_logistic(folding_seed, X, y, n_fold):
+    """
+    Compute average R2/IMV over folds for deterministic logistic regression.
+    """
+    skf = KFold(n_splits=n_fold, random_state=folding_seed, shuffle=True)
+    score_holder = None
+    counter = 0
+    for train_index, test_index in skf.split(X, y):
+        X_train, X_test = X.iloc[train_index], X.iloc[test_index]
+        y_train, y_test = y.iloc[train_index], y.iloc[test_index]
+        score_temp = get_predictions_logistic(X_train, y_train, X_test, y_test)
+        if counter == 0:
+            score_holder = score_temp
+        else:
+            score_holder += score_temp
+        counter += 1
+    score_holder = (score_holder / n_fold).round(decimals=4)
+    return {
+        'Folding_Seed': folding_seed,
+        'R2': list(score_holder['LR'])[0],
+        'IMV': list(score_holder['LR'])[1],
+    }
+
+
+def mean_accuracy_for_seed(seed: int, X, y, n_fold: int) -> float:
+    """
+    Compute mean accuracy across KFold splits for a given seed
+    (used as both folding_seed and model random_state).
+    """
+    skf = KFold(n_splits=n_fold, random_state=seed, shuffle=True)
+    accs = []
+    for train_index, test_index in skf.split(X, y):
+        X_train, X_test = X.iloc[train_index], X.iloc[test_index]
+        y_train, y_test = y.iloc[train_index], y.iloc[test_index]
+        rf = RandomForestClassifier(random_state=seed)
+        rf.fit(X_train, y_train)
+        preds = rf.predict(X_test)
+        accs.append(accuracy_score(y_test, preds))
+    return float(np.mean(accs))
+
+
+def mean_accuracy_for_seed_logistic(seed: int, X, y, n_fold: int) -> float:
+    """
+    Compute mean accuracy across KFold splits for deterministic logistic regression
+    using the seed only for folding.
+    """
+    skf = KFold(n_splits=n_fold, random_state=seed, shuffle=True)
+    accs = []
+    for train_index, test_index in skf.split(X, y):
+        X_train, X_test = X.iloc[train_index], X.iloc[test_index]
+        y_train, y_test = y.iloc[train_index], y.iloc[test_index]
+        X_train_sm = sm.add_constant(X_train, has_constant="add")
+        X_test_sm = sm.add_constant(X_test, has_constant="add")
+        try:
+            model = sm.Logit(y_train, X_train_sm)
+            res = model.fit(disp=False, maxiter=250)
+            probs = res.predict(X_test_sm)
+        except Exception:
+            probs = np.full_like(y_test, fill_value=np.mean(y_train), dtype=float)
+        preds = (probs >= 0.5).astype(int)
+        accs.append(accuracy_score(y_test, preds))
+    return float(np.mean(accs))
+
+
 def get_seed_list():
     seed_list_path = os.path.join(os.getcwd(), '..', 'assets', 'seed_list.txt')
     with open(seed_list_path) as f:
@@ -151,13 +240,34 @@ def get_seed_list():
 def main(data_path, table_path):
     train_df = pd.read_csv(os.path.join(data_path, 'train.csv'))
     X, y = wrangle_titanic(train_df)
-    n_fold = 10
+    n_fold = 5
     seed_limit = 1000
     seed_list = get_seed_list()[0:seed_limit]
-    results = Parallel(n_jobs=10)(delayed(process_seed)(folding_seed, X, y, n_fold, seed_list) for folding_seed in tqdm(seed_list))
-    flattened_results = [item for sublist in results for item in sublist]
-    df = pd.DataFrame(flattened_results)
-    df.to_csv(os.path.join(table_path, 'titanic_outputs.csv'), index=False)
+    # Random Forest nested seeds (folding + modeling)
+    rf_results = Parallel(n_jobs=10)(delayed(process_seed)(folding_seed, X, y, n_fold, seed_list) for folding_seed in tqdm(seed_list, desc="RF folding seeds"))
+    rf_flattened = [item for sublist in rf_results for item in sublist]
+    rf_df = pd.DataFrame(rf_flattened)
+    rf_df.to_csv(os.path.join(table_path, 'titanic_outputs_rf.csv'), index=False)
+
+    # Deterministic Logistic Regression (vary folding seed only)
+    lr_results = Parallel(n_jobs=10)(delayed(process_seed_logistic)(folding_seed, X, y, n_fold) for folding_seed in tqdm(seed_list, desc="Logistic folding seeds"))
+    lr_df = pd.DataFrame(lr_results)
+    lr_df.to_csv(os.path.join(table_path, 'titanic_outputs_logistic.csv'), index=False)
+
+    # Compute accuracies for specific seeds and write to ../data/titanic
+    specific_seeds = [42, 123]
+    acc_lines = []
+    for seed in specific_seeds:
+        acc_rf = mean_accuracy_for_seed(seed, X, y, n_fold)
+        acc_lr = mean_accuracy_for_seed_logistic(seed, X, y, n_fold)
+        acc_lines.append(f"seed={seed}, rf_accuracy={acc_rf:.4f}, lr_accuracy={acc_lr:.4f}")
+
+    titanic_dir = os.path.dirname(table_path)
+    os.makedirs(titanic_dir, exist_ok=True)
+    acc_path = os.path.join(titanic_dir, 'accuracy_seeds.txt')
+    with open(acc_path, 'w', encoding='utf-8') as f:
+        for line in acc_lines:
+            f.write(line + "\n")
 
 if __name__ == '__main__':
     data_path = os.path.join(os.getcwd(), '..', 'data', 'titanic', 'raw')
