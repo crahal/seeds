@@ -321,7 +321,7 @@ def plot_llms(fpath_wseeds, fpath_wfixedseeds, shuffled):
     sns.despine(ax=axes[1][1], top=True, right=True)
 
     plt.savefig(os.path.join(figure_path, f"plot_llms_{shuffled}.pdf"), bbox_inches="tight")
-    
+
 
 
 def plot_three_simple_examples(figure_path,
@@ -1206,6 +1206,176 @@ def plot_predictions(first_wave_10k_stratified_list,
     plt.subplots_adjust(hspace=1.25)
     plt.savefig(os.path.join(figure_path, 'prediction_seeds.pdf'), bbox_inches='tight')
 
+
+def plot_predictions_three_panel(first_wave_10k_stratified_list,
+                                 figure_path,
+                                 figsize=(16, 5),
+                                 colors=['#001c54', '#E89818']):
+    """
+    Condensed version of plot_predictions showing only panels a, b, and e
+    in a 1x3 layout. Adds KDEs to all three panels and uses a single legend
+    on the leftmost axis. Braces above the second and third axes highlight
+    their summary statistics.
+    """
+    mpl.rcParams['font.family'] = 'Helvetica'
+    nbins = 24
+
+    housing = pd.read_csv(os.path.join(os.getcwd(),
+                                       '..',
+                                       'data',
+                                       'housing',
+                                       'results',
+                                       'r2.csv'),
+                          index_col=0).reset_index()
+
+    titanic = pd.read_csv(os.path.join(os.getcwd(),
+                                       '..',
+                                       'data',
+                                       'titanic',
+                                       'results',
+                                       'titanic_outputs.csv'))
+
+    def _print_stats(name, arr):
+        arr = np.asarray(arr, dtype=float)
+        arr = arr[~np.isnan(arr)]
+        n = len(arr)
+        if n == 0:
+            print(f"{name}: empty")
+            return
+        mean = float(np.mean(arr))
+        amin = float(np.min(arr))
+        amax = float(np.max(arr))
+        std = float(np.std(arr, ddof=1)) if n > 1 else float("nan")
+        # Effect-size style z (mean over SD) to avoid huge t-stats when n is large
+        z_score = mean / std if std not in (0, float("nan")) else float("nan")
+        print(f"{name}: n={n}, mean={mean:.4f}, min={amin:.4f}, max={amax:.4f}, sd={std:.4f}, z={z_score:.4f}")
+
+    _print_stats("COVID ROC-AUC", first_wave_10k_stratified_list)
+    _print_stats("Housing R2", housing['R2'])
+    _print_stats("Titanic IMV", titanic['IMV'])
+
+    fig, axes = plt.subplots(1, 3, figsize=figsize)
+    ax1, ax2, ax3 = axes
+
+    def _add_brace_with_text(ax, text):
+        """
+        Match the compact bracket-and-label style used in plot_predictions.
+        """
+        ax.annotate(
+            text,
+            xy=(0.5, 0.95), xytext=(0.5, 1.015),
+            xycoords='axes fraction', textcoords='axes fraction',
+            fontsize=13, ha='center', va='bottom',
+            bbox=dict(boxstyle='round,pad=0.35', fc='white', ec='black', lw=1.0),
+            arrowprops=dict(arrowstyle='-[, widthB=9.5, lengthB=1', lw=1.5),
+        )
+
+    # Panel a: COVID ROC-AUC
+    sns.histplot(first_wave_10k_stratified_list, edgecolor='k',
+                 color=colors[0], alpha=1, stat='density',
+                 ax=ax1, bins=nbins)
+    sns.kdeplot(first_wave_10k_stratified_list,
+                color=colors[1],
+                ax=ax1,
+                common_norm=True,
+                linewidth=2)
+    ax1.set_xlabel('ROC-AUC', fontsize=13)
+    ax1.set_ylabel('Density', fontsize=13)
+    ax1.set_title('a.', loc='left', fontsize=18, y=1.02, x=-0.05, fontweight='bold')
+
+    # Panel b: Housing R^2
+    sns.histplot(housing['R2'],
+                 edgecolor='k',
+                 color=colors[0],
+                 alpha=1,
+                 stat='density',
+                 ax=ax2,
+                 bins=nbins)
+    sns.kdeplot(housing['R2'],
+                color=colors[1],
+                ax=ax2,
+                common_norm=True,
+                linewidth=2)
+    ax2.set_xlabel(r'R$^2$', fontsize=13)
+    ax2.set_ylabel('Density', fontsize=13)
+    ax2.set_title('b.', loc='left', fontsize=18, y=1.02, x=-0.05, fontweight='bold')
+
+    # Panel e: Titanic IMV
+    sns.histplot(titanic['IMV'],
+                 edgecolor='k',
+                 color=colors[0],
+                 alpha=1,
+                 stat='density',
+                 ax=ax3,
+                 bins=nbins)
+    sns.kdeplot(titanic['IMV'],
+                color=colors[1],
+                ax=ax3,
+                common_norm=True,
+                linewidth=2)
+    ax3.set_xlabel('IMV', fontsize=13)
+    ax3.set_ylabel('Density', fontsize=13)
+    ax3.set_title('c.', loc='left', fontsize=18, y=1.02, x=-0.05, fontweight='bold')
+
+    # One legend on the right of panel c
+    legend_elements = [
+        Patch(facecolor=colors[0], edgecolor='k', label='Bins', alpha=1),
+        Line2D([0], [0], color=colors[1], lw=1.75, linestyle='-', label='KDE', alpha=1),
+    ]
+    ax3.legend(handles=legend_elements, loc='center right', frameon=True,
+               fontsize=11, framealpha=1, facecolor='w',
+               edgecolor=(0, 0, 0, 1))
+
+    # Braces above panels with summary stats
+    auc_mean = np.nanmean(first_wave_10k_stratified_list)
+    auc_std = np.nanstd(first_wave_10k_stratified_list)
+    housing_mean = np.nanmean(housing['R2'])
+    housing_std = np.nanstd(housing['R2'])
+    titanic_mean = np.nanmean(titanic['IMV'])
+    titanic_std = np.nanstd(titanic['IMV'])
+
+    _add_brace_with_text(ax1, f"E(AUC) = {auc_mean:.3f}, σ(AUC) = {auc_std:.3f}")
+    _add_brace_with_text(ax2, f"E(R²) = {housing_mean:.3f}, σ(R²) = {housing_std:.3f}")
+    _add_brace_with_text(ax3, f"E(IMV) = {titanic_mean:.3f}, σ(IMV) = {titanic_std:.3f}")
+
+    # Original-result annotation for panel a (mirroring plot_predictions)
+    ax1.axvline(x=0.76, ymin=0, ymax=0.82, color='red', linestyle='--')
+    ymin, ymax = ax1.get_ylim()
+    annotation_y = ymin + (ymax - ymin) * 0.54
+    x0, x1 = ax1.get_xlim()
+    span = x1 - x0
+    text_x = x1 - 0.05 * span  # park label toward the right edge
+    ax1.annotate(' Original Result:\nROC-AUC=0.76\n (0.74-0.78)',
+                 xy=(0.76, annotation_y),
+                 xytext=(text_x, annotation_y),
+                 ha='center',
+                 va='center',
+                 fontsize=12,
+                 bbox=dict(boxstyle="round,pad=0.3", edgecolor="w", facecolor="w"),
+                 arrowprops=dict(arrowstyle='->',
+                                 connectionstyle="arc3,rad=0",
+                                 color='black',
+                                 mutation_scale=20,
+                                 lw=1.5)
+                 )
+
+    # modest x-padding (10%) to give braces/annotations breathing room
+    for ax in axes:
+        x0, x1 = ax.get_xlim()
+        y0, y1 = ax.get_ylim()
+        xpad = 0.05 * (x1 - x0)
+        ypad = 0.10 * (y1 - y0)
+        ax.set_xlim(x0 - xpad, x1 + xpad)
+        ax.set_ylim(y0, y1 + ypad)
+
+    for ax in axes:
+        ax.grid(which="both", linestyle='--', alpha=0.225)
+        ax.tick_params(axis='both', which='major', labelsize=11)
+        sns.despine(ax=ax)
+
+    plt.tight_layout()
+    filename = 'prediction_seeds_three_panel'
+    plt.savefig(os.path.join(figure_path, f'{filename}.pdf'), bbox_inches='tight')
 
 def download_and_resample(ticker, start, end):
     data = yf.download(ticker, start=start, end=end)
@@ -2370,6 +2540,7 @@ def load_sympt(filename):
     df['roc_auc_mean'] = np.mean(df['roc_auc'].tolist(), axis=1)
     mylist = df['roc_auc'].to_list()
     flat_list = [item for sublist in mylist for item in sublist]
+    print(len(flat_list))
     return flat_list
 
 
