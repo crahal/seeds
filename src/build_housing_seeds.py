@@ -50,14 +50,11 @@ def process_seed_pair(folding_seed, modeling_seed, df):
     x['median_income'] = df['median_income']
     y = df['median_house_value']
 
-    from sklearn.model_selection import KFold
-    skf = KFold(n_splits=5, random_state=folding_seed, shuffle=True)
-    scores = []
-    for train_index, test_index in skf.split(x, y):
-        x_train, x_test = x.iloc[train_index], x.iloc[test_index]
-        y_train, y_test = y.iloc[train_index], y.iloc[test_index]
-        scores.append(make_prediction(x_train, x_test, y_train, y_test, modeling_seed))
-    r2_score = float(np.mean(scores))
+    # Single 70/30 split with specified folding_seed; RF uses modeling_seed
+    x_train, x_test, y_train, y_test = train_test_split(
+        x, y, test_size=0.3, random_state=folding_seed, shuffle=True
+    )
+    r2_score = make_prediction(x_train, x_test, y_train, y_test, modeling_seed)
 
     return {'Folding_Seed': folding_seed, 'Modeling_Seed': modeling_seed, 'R2': r2_score}
 
@@ -67,64 +64,53 @@ def process_seed_ols(folding_seed, df):
     x['median_income'] = df['median_income']
     y = df['median_house_value']
 
-    from sklearn.model_selection import KFold
-    skf = KFold(n_splits=5, random_state=folding_seed, shuffle=True)
-    scores = []
-    for train_index, test_index in skf.split(x, y):
-        x_train, x_test = x.iloc[train_index], x.iloc[test_index]
-        y_train, y_test = y.iloc[train_index], y.iloc[test_index]
-        scores.append(make_prediction_ols(x_train, x_test, y_train, y_test))
-    r2_score = float(np.mean(scores))
+    # Single 70/30 split with specified folding_seed; deterministic OLS model
+    x_train, x_test, y_train, y_test = train_test_split(
+        x, y, test_size=0.3, random_state=folding_seed, shuffle=True
+    )
+    r2_score = make_prediction_ols(x_train, x_test, y_train, y_test)
 
     return {'Folding_Seed': folding_seed, 'R2': r2_score}
 
 def mean_r2_for_seed_ols(seed, df, n_fold=5):
     """
-    Mean explained variance across KFold splits for OLS using seed only for fold shuffling.
+    Mean explained variance across a single 70/30 split for OLS using seed only for shuffling.
     """
-    from sklearn.model_selection import KFold
-    skf = KFold(n_splits=5, random_state=seed, shuffle=True)
-    scores = []
     x = df.iloc[:, :-3].copy()
     x['ocean_proximity'] = df['ocean_proximity']
     x['median_income'] = df['median_income']
     y = df['median_house_value']
-    for train_index, test_index in skf.split(x, y):
-        x_train, x_test = x.iloc[train_index], x.iloc[test_index]
-        y_train, y_test = y.iloc[train_index], y.iloc[test_index]
-        clf = LinearRegression()
-        clf.fit(x_train, y_train)
-        preds = clf.predict(x_test)
-        scores.append(explained_variance_score(y_test, preds))
-    return float(np.mean(scores))
+    x_train, x_test, y_train, y_test = train_test_split(
+        x, y, test_size=0.3, random_state=seed, shuffle=True
+    )
+    clf = LinearRegression()
+    clf.fit(x_train, y_train)
+    preds = clf.predict(x_test)
+    return float(explained_variance_score(y_test, preds))
 
 
 def single_seed_r2(seed, df):
     """
-    Compute mean explained variance (R2 proxy) over 5 folds using the same
+    Compute explained variance (R2 proxy) on a single 70/30 split using the same
     seed for both folding and model initialization.
     """
     x = df.iloc[:, :-3].copy()
     x['ocean_proximity'] = df['ocean_proximity']
     x['median_income'] = df['median_income']
     y = df['median_house_value']
-    from sklearn.model_selection import KFold
-    skf = KFold(n_splits=5, random_state=seed, shuffle=True)
-    scores = []
-    for train_index, test_index in skf.split(x, y):
-        x_train, x_test = x.iloc[train_index], x.iloc[test_index]
-        y_train, y_test = y.iloc[train_index], y.iloc[test_index]
-        scores.append(make_prediction(x_train, x_test, y_train, y_test, modeling_seed=seed))
-    return float(np.mean(scores))
+    x_train, x_test, y_train, y_test = train_test_split(
+        x, y, test_size=0.3, random_state=seed, shuffle=True
+    )
+    score = make_prediction(x_train, x_test, y_train, y_test, modeling_seed=seed)
+    return score
 
 
 if __name__ == "__main__":
-    seed_limit = 1000
     housing_path = os.path.join(os.getcwd(), '..', 'data', 'housing')
     df = pd.read_csv(os.path.join(housing_path, 'raw', 'housing.csv'),
                      converters={'ocean_proximity': converter})
     df = df.dropna()
-
+    seed_limit = 1000
     seed_list = get_seed_list()[:seed_limit]
 
     # Random forest: folding x modeling seeds (existing behavior)
@@ -134,6 +120,8 @@ if __name__ == "__main__":
         for modeling_seed in seed_list
     )
 
+    seed_limit = 1000
+    seed_list = get_seed_list()[:seed_limit]
     # Ordinary least squares: deterministic model, vary folding seed only
     ols_results = Parallel(n_jobs=10)(
         delayed(process_seed_ols)(folding_seed, df)

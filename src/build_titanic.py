@@ -248,7 +248,9 @@ def main(data_path, table_path):
     rf_flattened = [item for sublist in rf_results for item in sublist]
     rf_df = pd.DataFrame(rf_flattened)
     rf_df.to_csv(os.path.join(table_path, 'titanic_outputs_rf.csv'), index=False)
-
+    
+    seed_limit = 1000
+    seed_list = get_seed_list()[0:seed_limit]
     # Deterministic Logistic Regression (vary folding seed only)
     lr_results = Parallel(n_jobs=10)(delayed(process_seed_logistic)(folding_seed, X, y, n_fold) for folding_seed in tqdm(seed_list, desc="Logistic folding seeds"))
     lr_df = pd.DataFrame(lr_results)
