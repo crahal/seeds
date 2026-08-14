@@ -6,6 +6,7 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
 
+
 def main():
     # Parameters
     N = 1000  # Total population
@@ -24,12 +25,10 @@ def main():
     I = [I0]
     R = [R0]
 
-
     def get_seed_list():
         seed_list_path = os.path.join(os.getcwd(), '..', 'assets', 'seed_list.txt')
         with open(seed_list_path) as f:
             return [int(line.rstrip('\n')) for line in f]
-
 
     seed_list = get_seed_list()
 

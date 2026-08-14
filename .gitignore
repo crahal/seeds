@@ -168,4 +168,5 @@ src/deprecated
 /assets/seeds_talks
 idea/data/
 data/*
-data/
+/assets/comic/
+.idea/copilot.data.migration.agent.xml

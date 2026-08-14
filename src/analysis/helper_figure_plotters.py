@@ -1,8 +1,10 @@
 import ast
+import re
 import os
 import math
 import time
 import random
+import warnings
 from pathlib import Path
 from datetime import datetime
 import numpy as np
@@ -64,6 +66,30 @@ def plot_llms(fpath_wseeds, fpath_wfixedseeds, shuffled):
     df = pd.read_csv(fpath_wseeds)
     df_fixed = pd.read_csv(fpath_wfixedseeds)
 
+    print("\n===================== SAMPLE SIZE / SEED TRIALS =====================")
+
+    def _describe_samples(dataframe, name):
+        total_rows = len(dataframe)
+        has_temp = "temperature" in dataframe.columns
+        has_seed = "seed" in dataframe.columns
+        unique_temps = sorted(dataframe["temperature"].unique()) if has_temp else []
+        unique_seeds = dataframe["seed"].nunique() if has_seed else None
+        print(
+            f"{name}: rows={total_rows:,}"
+            f"{' | unique temperatures=' + str(unique_temps) if has_temp else ' | no temperature column'}"
+            f"{' | unique seeds=' + str(unique_seeds) if unique_seeds is not None else ' | no seed column'}"
+        )
+        if has_temp:
+            for t, g in dataframe.groupby("temperature"):
+                seeds_here = g["seed"].nunique() if has_seed else None
+                print(
+                    f"  - temp {t}: rows={len(g):,}"
+                    f"{' | unique seeds=' + str(seeds_here) if seeds_here is not None else ''}"
+                )
+
+    _describe_samples(df, f"Main file '{fpath_wseeds}' (different seeds)")
+    _describe_samples(df_fixed, f"Fixed-seed file '{fpath_wfixedseeds}' (includes temp sweeps)")
+
     # ---------------------------------------------------------------------
     # Restrict fixed-seed to temperature 0.0 if column exists
     # ---------------------------------------------------------------------
@@ -73,6 +99,7 @@ def plot_llms(fpath_wseeds, fpath_wfixedseeds, shuffled):
             raise ValueError("df_fixed has 'temperature' but no rows with temperature==0.0.")
     else:
         df_fixed0 = df_fixed  # assume file is already fixed-seed @ 0.0
+    _describe_samples(df_fixed0, "Fixed-seed @ temperature 0.0 subset used for leftmost column")
 
     # ---------------------------------------------------------------------
     # WITHIN fixed-seed @ 0.0: divergence from main category (per panel)
@@ -85,6 +112,7 @@ def plot_llms(fpath_wseeds, fpath_wfixedseeds, shuffled):
     ]
 
     print("\nWithin fixed-seed @ 0.0: concentration over class labels\n")
+    fixed_seed_unique_seeds = df_fixed0["seed"].nunique() if "seed" in df_fixed0.columns else None
     for col in panel_cols:
         if col not in df_fixed0.columns:
             raise ValueError(f"Expected column '{col}' in df_fixed (or df_fixed0).")
@@ -103,7 +131,9 @@ def plot_llms(fpath_wseeds, fpath_wfixedseeds, shuffled):
         perplexity = float(2.0 ** H) if np.isfinite(H) else float("nan")
 
         print(
-            f"{col:>18s} : main='{main_label}' | p_max={pmax:.6f} | "
+            f"{col:>18s} : n_rows={total:,}"
+            f"{' | unique seeds=' + str(fixed_seed_unique_seeds) if fixed_seed_unique_seeds is not None else ''}"
+            f" | main='{main_label}' | p_max={pmax:.6f} | "
             f"1-p_max={divergence_from_main:.6f} | H={H:.6f} bits | perp={perplexity:.3f}"
         )
 
@@ -157,6 +187,39 @@ def plot_llms(fpath_wseeds, fpath_wfixedseeds, shuffled):
     )
 
     row_words = [words_row0, words_row1]
+
+    # ---------------------------------------------------------------------
+    # Modal-share stability across temperatures (per panel)
+    # ---------------------------------------------------------------------
+    def _modal_share_stats(label):
+        print(f"\nModal-share stability for '{label}' across temperatures:")
+        vals = []
+        for t, g in df.groupby("temperature"):
+            counts = g[label].value_counts(dropna=False)
+            total = counts.sum()
+            if total == 0:
+                continue
+            seeds_here = g["seed"].nunique() if "seed" in g.columns else None
+            print(
+                f"  temp={t}: rows={len(g):,}"
+                f"{' | unique seeds=' + str(seeds_here) if seeds_here is not None else ''}"
+                f" | label observations={total:,}"
+            )
+            vals.append(float(counts.max() / total))
+        vals = np.asarray(vals, dtype=float)
+        vals = vals[~np.isnan(vals)]
+        if vals.size == 0:
+            print(f"{label}: no data for modal-share stats")
+            return
+        mean = float(np.mean(vals))
+        amin = float(np.min(vals))
+        amax = float(np.max(vals))
+        sd = float(np.std(vals, ddof=1)) if vals.size > 1 else float("nan")
+        z = mean / sd if sd not in (0, float("nan")) else float("nan")
+        print(f"{label}: modal-share p_max across temps -> n={vals.size}, min={amin:.4f}, max={amax:.4f}, mean={mean:.4f}, sd={sd:.4f}, z={z:.4f}")
+
+    for col in panel_cols:
+        _modal_share_stats(col)
 
     # ---------------------------------------------------------------------
     # Temperatures + special fixed-seed column
@@ -336,6 +399,29 @@ def plot_three_simple_examples(figure_path,
                                       'sir',
                                       'sir_seeds_1dp.csv')
                          )
+    # Basic stats for infection rate at timestep 250 (as a fraction of population 1,000)
+    timestep_idx = 250
+    infection_cols = ['Infected_min', 'Infected_med', 'Infected_max']
+    if timestep_idx < len(df_sir):
+        infection_counts = df_sir.loc[timestep_idx, infection_cols].astype(float)
+        infection_rates = infection_counts / 1000.0
+        infection_rate_stats = {
+            'min': float(infection_rates.min()),
+            'max': float(infection_rates.max()),
+            'mean': float(infection_rates.mean()),
+            'std': float(infection_rates.std(ddof=0)),
+        }
+        infection_rate_zscore = ((infection_rates['Infected_med'] - infection_rate_stats['mean'])
+                                 / infection_rate_stats['std']
+                                 if infection_rate_stats['std'] else np.nan)
+        print(
+            "Infection rate at timestep 250 (fraction of population): "
+            f"min={infection_rate_stats['min']:.4f}, "
+            f"max={infection_rate_stats['max']:.4f}, "
+            f"mean={infection_rate_stats['mean']:.4f}, "
+            f"std={infection_rate_stats['std']:.4f}, "
+            f"z-score={infection_rate_zscore:.4f}"
+        )
     df_buffon = pd.read_csv(os.path.join(os.getcwd(),
                                          '..',
                                          'data',
@@ -345,6 +431,40 @@ def plot_three_simple_examples(figure_path,
                             names=['Throws', 'Min', '25th_PC',
                                    'Median', '75th_PC', 'Max']
                             )
+    # Needle (Buffon's) stats at specific throw counts using the wide sweep file (1000-40000 throws)
+    df_buffon_stats = pd.read_csv(os.path.join(os.getcwd(),
+                                               '..',
+                                               'data',
+                                               'needles',
+                                               'results',
+                                               'throw1000_40000_5000seeds.csv'),
+                                  names=['Throws', 'Min', '25th_PC', 'Median', '75th_PC', 'Max']
+                                  )
+
+    def _needle_stats(target_throws):
+        # Use the closest available row if the exact throw count is absent (file is in steps of 10)
+        idx = (df_buffon_stats['Throws'] - target_throws).abs().idxmin()
+        row = df_buffon_stats.loc[idx]
+        values = row[['Min', 'Median', 'Max']].astype(float)
+        stats = {
+            'min': float(values.min()),
+            'max': float(values.max()),
+            'mean': float(values.mean()),
+            'std': float(values.std(ddof=0)),
+        }
+        zscore = ((row['Median'] - stats['mean']) / stats['std']
+                  if stats['std'] else np.nan)
+        print(
+            f"Needle estimate at ~{int(target_throws):,} throws "
+            f"(using {int(row['Throws']):,}): "
+            f"min={stats['min']:.4f}, max={stats['max']:.4f}, "
+            f"mean={stats['mean']:.4f}, std={stats['std']:.4f}, "
+            f"z-score={zscore:.4f}"
+        )
+
+    for throws_target in (1000, 40000):
+        _needle_stats(throws_target)
+
     df_collisions = pd.read_csv(os.path.join(os.getcwd(),
                                              '..',
                                              'data',
@@ -358,6 +478,24 @@ def plot_three_simple_examples(figure_path,
                                                       'collisions',
                                                       'stats_32_final_row.csv')
                                          )
+    # Hofert collisions stats at ~1,000,000 draws (full final-row sample)
+    if not df_collisions_finalrow.empty:
+        collisions_vals = df_collisions_finalrow['x'].astype(float)
+        coll_stats = {
+            'min': float(collisions_vals.min()),
+            'max': float(collisions_vals.max()),
+            'mean': float(collisions_vals.mean()),
+            'std': float(collisions_vals.std(ddof=0)),
+        }
+        coll_median = float(collisions_vals.median())
+        coll_z = ((coll_median - coll_stats['mean']) / coll_stats['std']
+                  if coll_stats['std'] else np.nan)
+        print(
+            "Hofert collisions at 1,000,000 draws: "
+            f"min={coll_stats['min']:.4f}, max={coll_stats['max']:.4f}, "
+            f"mean={coll_stats['mean']:.4f}, std={coll_stats['std']:.4f}, "
+            f"median={coll_median:.4f}, z-score={coll_z:.4f}"
+        )
 
     fig = plt.figure(figsize=figsize)
     gs = fig.add_gridspec(3, 1)
@@ -516,7 +654,8 @@ def plot_three_simple_examples(figure_path,
     sns.despine(ax=ax3_inset, left=True, right=True, top=True)
     sns.despine(ax=ax3_twin, left=True, right=True, top=True)
 
-    plt.tight_layout()
+    # tight_layout struggles with inset axes; use explicit padding instead
+    fig.subplots_adjust(left=0.07, right=0.98, top=0.95, bottom=0.08, wspace=0.18, hspace=0.30)
     filename = 'three_simple_examples'
     plt.savefig(os.path.join(figure_path, filename + '.pdf'),
                 bbox_inches='tight')
@@ -981,7 +1120,7 @@ def plot_predictions(first_wave_10k_stratified_list,
                                        'data',
                                        'housing',
                                        'results',
-                                       'r2.csv'),
+                                       'housing_outputs_ols.csv'),
                           index_col=0)
     housing = housing.reset_index()
 
@@ -990,7 +1129,7 @@ def plot_predictions(first_wave_10k_stratified_list,
                                        'data',
                                        'titanic',
                                        'results',
-                                       'titanic_outputs.csv'))
+                                       'titanic_outputs_logistic.csv'))
     mnist = pd.read_csv(os.path.join(os.path.join(os.getcwd(),
                                                   '..',
                                                   'data',
@@ -1040,8 +1179,11 @@ def plot_predictions(first_wave_10k_stratified_list,
                  color=colors[1], alpha=1, stat='density',
                  ax=ax3, bins=nbins)
 
-    folding_seed_variance = housing.groupby('Modeling_Seed')['R2'].std().reset_index()
-    folding_seed_variance.columns = ['Modeling_Seed', 'R2_variance']
+    if 'Modeling_Seed' in housing.columns:
+        folding_seed_variance = housing.groupby('Modeling_Seed')['R2'].std().reset_index()
+        folding_seed_variance.columns = ['Modeling_Seed', 'R2_variance']
+    else:
+        folding_seed_variance = modelling_seed_variance.rename(columns={'Folding_Seed': 'Modeling_Seed'})
     sns.histplot(np.round(folding_seed_variance['R2_variance'], 5), edgecolor='k',
                  color=colors[1], alpha=1, stat='density',
                  ax=ax4, bins=nbins)
@@ -1057,8 +1199,11 @@ def plot_predictions(first_wave_10k_stratified_list,
                  color=colors[1], alpha=1, stat='density',
                  ax=ax6, bins=nbins)
 
-    folding_seed_variance = titanic.groupby('Modeling_Seed')['IMV'].std().reset_index()
-    folding_seed_variance.columns = ['Modeling_Seed', 'IMV_variance']
+    if 'Modeling_Seed' in titanic.columns:
+        folding_seed_variance = titanic.groupby('Modeling_Seed')['IMV'].std().reset_index()
+        folding_seed_variance.columns = ['Modeling_Seed', 'IMV_variance']
+    else:
+        folding_seed_variance = modelling_seed_variance.rename(columns={'Folding_Seed': 'Modeling_Seed', 'IMV_variance': 'IMV_variance'})
     sns.histplot(folding_seed_variance['IMV_variance'], edgecolor='k',
                  color=colors[1], alpha=1, stat='density',
                  ax=ax7, bins=nbins)
@@ -1225,7 +1370,7 @@ def plot_predictions_three_panel(first_wave_10k_stratified_list,
                                        'data',
                                        'housing',
                                        'results',
-                                       'r2.csv'),
+                                       'housing_outputs_ols.csv'),
                           index_col=0).reset_index()
 
     titanic = pd.read_csv(os.path.join(os.getcwd(),
@@ -1233,7 +1378,29 @@ def plot_predictions_three_panel(first_wave_10k_stratified_list,
                                        'data',
                                        'titanic',
                                        'results',
-                                       'titanic_outputs.csv'))
+                                       'titanic_outputs_logistic.csv'))
+
+    def _load_seed_metrics(path, seed):
+        metrics = {}
+        p = Path(path)
+        if not p.exists():
+            return metrics
+        for line in p.read_text().splitlines():
+            if f"seed={seed}" in line:
+                for part in line.split(','):
+                    if '=' in part:
+                        k, v = part.split('=', 1)
+                        k = k.strip()
+                        v = v.strip()
+                        try:
+                            metrics[k] = float(v)
+                        except ValueError:
+                            metrics[k] = v
+        return metrics
+
+    housing_seed_metrics = _load_seed_metrics(Path(os.getcwd()) / '..' / 'data' / 'housing' / 'accuracy_seeds.txt', 42)
+    titanic_seed_metrics_42 = _load_seed_metrics(Path(os.getcwd()) / '..' / 'data' / 'titanic' / 'accuracy_seeds.txt', 42)
+    titanic_seed_metrics_123 = _load_seed_metrics(Path(os.getcwd()) / '..' / 'data' / 'titanic' / 'accuracy_seeds.txt', 123)
 
     def _print_stats(name, arr):
         arr = np.asarray(arr, dtype=float)
@@ -1250,9 +1417,29 @@ def plot_predictions_three_panel(first_wave_10k_stratified_list,
         z_score = mean / std if std not in (0, float("nan")) else float("nan")
         print(f"{name}: n={n}, mean={mean:.4f}, min={amin:.4f}, max={amax:.4f}, sd={std:.4f}, z={z_score:.4f}")
 
-    _print_stats("COVID ROC-AUC", first_wave_10k_stratified_list)
-    _print_stats("Housing R2", housing['R2'])
-    _print_stats("Titanic IMV", titanic['IMV'])
+    # Flattened folds stats
+    _print_stats("COVID ROC-AUC (all folds)", first_wave_10k_stratified_list)
+    _print_stats("Housing R2 (OLS)", housing['R2'])
+    _print_stats("Titanic IMV (Logistic Regression)", titanic['IMV'])
+
+    # Row-wise (per-seed) averages across the 5 folds, then summary stats
+    if isinstance(first_wave_10k_stratified_list, (list, np.ndarray)):
+        arr_raw = np.asarray(first_wave_10k_stratified_list, dtype=float)
+        fold_count = arr_raw.shape[1] if arr_raw.ndim == 2 else 5
+        row_means = None
+
+        if arr_raw.ndim == 2:
+            row_means = np.nanmean(arr_raw, axis=1)
+        elif arr_raw.ndim == 1 and arr_raw.size % fold_count == 0:
+            row_means = np.nanmean(arr_raw.reshape(-1, fold_count), axis=1)
+
+        if row_means is not None and row_means.size:
+            _print_stats("COVID ROC-AUC (row means across folds)", row_means)
+        else:
+            print(
+                f"COVID ROC-AUC (row means): array size {arr_raw.size} "
+                f"not divisible by {fold_count}; skipping row means."
+            )
 
     fig, axes = plt.subplots(1, 3, figsize=figsize)
     ax1, ax2, ax3 = axes
@@ -1317,12 +1504,12 @@ def plot_predictions_three_panel(first_wave_10k_stratified_list,
     ax3.set_ylabel('Density', fontsize=13)
     ax3.set_title('c.', loc='left', fontsize=18, y=1.02, x=-0.05, fontweight='bold')
 
-    # One legend on the right of panel c
+    # One legend on the left of panel a
     legend_elements = [
         Patch(facecolor=colors[0], edgecolor='k', label='Bins', alpha=1),
         Line2D([0], [0], color=colors[1], lw=1.75, linestyle='-', label='KDE', alpha=1),
     ]
-    ax3.legend(handles=legend_elements, loc='center right', frameon=True,
+    ax1.legend(handles=legend_elements, loc='center left', frameon=True,
                fontsize=11, framealpha=1, facecolor='w',
                edgecolor=(0, 0, 0, 1))
 
@@ -1339,12 +1526,13 @@ def plot_predictions_three_panel(first_wave_10k_stratified_list,
     _add_brace_with_text(ax3, f"E(IMV) = {titanic_mean:.3f}, σ(IMV) = {titanic_std:.3f}")
 
     # Original-result annotation for panel a (mirroring plot_predictions)
-    ax1.axvline(x=0.76, ymin=0, ymax=0.82, color='red', linestyle='--')
+    # Extend vline to the brace (assumes brace near top of axes)
+    ax1.axvline(x=0.76, ymin=0, ymax=0.95, color='red', linestyle='--')
     ymin, ymax = ax1.get_ylim()
     annotation_y = ymin + (ymax - ymin) * 0.54
     x0, x1 = ax1.get_xlim()
     span = x1 - x0
-    text_x = x1 - 0.05 * span  # park label toward the right edge
+    text_x = x1 - 0.12 * span  # slight additional move right
     ax1.annotate(' Original Result:\nROC-AUC=0.76\n (0.74-0.78)',
                  xy=(0.76, annotation_y),
                  xytext=(text_x, annotation_y),
@@ -1358,6 +1546,62 @@ def plot_predictions_three_panel(first_wave_10k_stratified_list,
                                  mutation_scale=20,
                                  lw=1.5)
                  )
+
+    # Housing annotation for seed 42 (panel b)
+    if housing_seed_metrics:
+        y_min, y_max = ax2.get_ylim()
+        ann_y = y_min + (y_max - y_min) * 0.55
+        hx0, hx1 = ax2.get_xlim()
+        h_span = hx1 - hx0
+        ols_r2 = housing_seed_metrics.get('ols_R2') or housing_seed_metrics.get('logistic_accuracy')
+        try:
+            arrow_x = float(ols_r2)
+        except Exception:
+            arrow_x = housing_mean
+            print("Warning: Seed 42 OLS R² missing; using overall mean.")
+        text_x = hx1 - 0.12 * h_span  # slight additional move right
+        ols_str = f"OLS R²={arrow_x:.4f}" if isinstance(arrow_x, float) else f"OLS R²={ols_r2}"
+        ax2.axvline(x=arrow_x, ymin=0, ymax=0.95, color='red', linestyle='--')
+        ax2.annotate(f"Seed 42:\n{ols_str}",
+                     xy=(arrow_x, ann_y),
+                     xytext=(text_x, ann_y),
+                     ha='center',
+                     va='center',
+                     fontsize=12,
+                     bbox=dict(boxstyle="round,pad=0.3", edgecolor="w", facecolor="w"),
+                     arrowprops=dict(arrowstyle='->',
+                                     connectionstyle="arc3,rad=0",
+                                     color='black',
+                                     mutation_scale=20,
+                                     lw=1.5)
+                     )
+
+    # Titanic annotation using per-seed IMV (panel c) — only Seed 123
+    if titanic_seed_metrics_123:
+        y_min, y_max = ax3.get_ylim()
+        ann_y = y_min + (y_max - y_min) * 0.55
+        tx0, tx1 = ax3.get_xlim()
+        t_span = tx1 - tx0
+        imv_123_raw = titanic_seed_metrics_123.get('lr_imv')
+        imv_123_val = float(imv_123_raw) if imv_123_raw not in (None, "") else float("nan")
+        if not np.isfinite(imv_123_val):
+            print("Warning: Seed 123 IMV missing; annotation skipped.")
+        else:
+            text_x = tx1 - 0.12 * t_span  # slight additional move right
+            ax3.axvline(x=imv_123_val, ymin=0, ymax=0.95, color='red', linestyle='--')
+            ax3.annotate(f"Seed 123:\nIMV={imv_123_val:.4f}",
+                         xy=(imv_123_val, ann_y),
+                         xytext=(text_x, ann_y),
+                         ha='center',
+                         va='center',
+                         fontsize=12,
+                         bbox=dict(boxstyle="round,pad=0.3", edgecolor="w", facecolor="w"),
+                         arrowprops=dict(arrowstyle='->',
+                                         connectionstyle="arc3,rad=0",
+                                         color='black',
+                                         mutation_scale=20,
+                                         lw=1.5)
+                         )
 
     # modest x-padding (10%) to give braces/annotations breathing room
     for ax in axes:
@@ -1376,6 +1620,322 @@ def plot_predictions_three_panel(first_wave_10k_stratified_list,
     plt.tight_layout()
     filename = 'prediction_seeds_three_panel'
     plt.savefig(os.path.join(figure_path, f'{filename}.pdf'), bbox_inches='tight')
+
+
+def plot_housing_titanic_seed_sigma(figure_path,
+                                    figsize=(14, 10),
+                                    colors=None,
+                                    bins=24,
+                                    metric_housing="R2",
+                                    metric_titanic="IMV",
+                                    return_fig=False):
+    """
+    Two-column, three-row figure showing overall metric and the
+    spread (std) across modeling and folding seeds for housing (RF)
+    and titanic (RF + SGD). Styling mirrors plot_predictions_three_panel,
+    with KDE overlays, braces, and seed-123 annotation.
+    """
+    if colors is None:
+        colors = ['#486cb0', '#fed07e']
+    main_color = colors[0]
+    sigma_color = colors[1] if len(colors) > 1 else colors[0]
+    mpl.rcParams['font.family'] = 'Helvetica'
+
+    def _to_num(series):
+        return pd.to_numeric(series, errors="coerce")
+
+    def _group_within_std(df, group_cols, metric):
+        """Std within each group (requires >=2 values per group)."""
+        if not set(group_cols).issubset(df.columns):
+            return np.asarray([], dtype=float)
+        vals = []
+        for _, g in df.groupby(group_cols):
+            s = _to_num(g[metric]).dropna()
+            if s.size >= 2:
+                vals.append(float(s.std(ddof=1)))
+        return np.asarray(vals, dtype=float)
+
+    def _stats(arr):
+        arr = np.asarray(arr, dtype=float)
+        arr = arr[~np.isnan(arr)]
+        if arr.size == 0:
+            return {"n": 0, "min": float("nan"), "max": float("nan"),
+                    "mean": float("nan"), "std": float("nan"), "z": float("nan")}
+        mean = float(np.mean(arr))
+        std = float(np.std(arr, ddof=1) if arr.size > 1 else np.nan)
+        z = mean / std if std not in (0, float("nan")) else float("nan")
+        return {"n": int(arr.size), "min": float(np.min(arr)), "max": float(np.max(arr)),
+                "mean": mean, "std": std, "z": z}
+
+    def _set_xlim(ax, data, pad_frac=0.03):
+        data = np.asarray(data, dtype=float)
+        data = data[~np.isnan(data)]
+        if data.size == 0:
+            return
+        dmin, dmax = float(np.min(data)), float(np.max(data))
+        span = dmax - dmin
+        pad = span * pad_frac if span > 0 else 0.001
+        ax.set_xlim(dmin - pad, dmax + pad)
+
+    # Load data
+    housing_rf = pd.read_csv(Path(os.getcwd()) / ".." / "data" / "housing" / "results" / "housing_outputs_rf.csv")
+    titanic_sgd = pd.read_csv(Path(os.getcwd()) / ".." / "data" / "titanic" / "results" / "titanic_outputs_sgd.csv")
+
+    # Only SGD for titanic
+    titanic_all = titanic_sgd.assign(Model="SGD")
+
+    # Distributions
+    housing_vals = _to_num(housing_rf[metric_housing]).dropna()
+    housing_model_std = _group_within_std(housing_rf, ["Modeling_Seed"], metric_housing)
+    housing_fold_std = _group_within_std(housing_rf, ["Folding_Seed"], metric_housing)
+
+    titanic_vals = _to_num(titanic_all[metric_titanic]).dropna()
+    # For SGD-only data, group by single seed columns
+    titanic_model_std = _group_within_std(titanic_all, ["Modeling_Seed"], metric_titanic)
+    titanic_fold_std = _group_within_std(titanic_all, ["Folding_Seed"], metric_titanic)
+
+    housing_stats = _stats(housing_vals)
+    housing_model_stats = _stats(housing_model_std)
+    housing_fold_stats = _stats(housing_fold_std)
+    titanic_stats = _stats(titanic_vals)
+    titanic_model_stats = _stats(titanic_model_std)
+    titanic_fold_stats = _stats(titanic_fold_std)
+
+    print("Housing RF R2 (all folds):", housing_stats)
+    print("Housing RF modeling σ:", housing_model_stats)
+    print("Housing RF folding σ:", housing_fold_stats)
+    print("Titanic SGD IMV (all folds):", titanic_stats)
+    print("Titanic modeling σ:", titanic_model_stats)
+    print("Titanic folding σ:", titanic_fold_stats)
+
+    # Scale requested figsize by row ratios so height reflects layout even if caller passes a small height
+    row_ratios = [2.75, 1.4, 1.4]  # first row taller than others
+    if figsize is None:
+        fig_w, fig_h = 14, 10 * (sum(row_ratios) / 3.0)
+    else:
+        fig_w, base_h = figsize
+        fig_h = base_h * (sum(row_ratios) / 3.0)
+
+    fig, axes = plt.subplots(
+        3, 2,
+        figsize=(fig_w, fig_h),
+        gridspec_kw={"height_ratios": row_ratios},
+    )
+    (ax_h_main, ax_t_main), (ax_h_model, ax_t_model), (ax_h_fold, ax_t_fold) = axes
+
+    def _add_brace_with_text(ax, text, xfrac=0.5):
+        ax.annotate(
+            text,
+            xy=(xfrac, 0.95), xytext=(xfrac, 1.015),
+            xycoords='axes fraction', textcoords='axes fraction',
+            fontsize=13, ha='center', va='bottom',
+            bbox=dict(boxstyle='round,pad=0.35', fc='white', ec='black', lw=1.0),
+            arrowprops=dict(arrowstyle='-[, widthB=9.5, lengthB=1', lw=1.5),
+        )
+
+    def _pad_ylim(ax, frac=0.12):
+        y0, y1 = ax.get_ylim()
+        span = y1 - y0
+        ax.set_ylim(y0, y1 + span * frac)
+
+    def _plot_hist_kde(ax, data, hist_color, kde_color, bins_local=None, kde_linewidth=1.5):
+        data = np.asarray(data, dtype=float)
+        data = data[~np.isnan(data)]
+        if data.size == 0:
+            return
+        sns.histplot(data, color=hist_color, edgecolor="k", bins=bins_local or bins,
+                     alpha=0.9, stat="density", ax=ax)
+        # Only draw KDE when variance exists
+        if data.size > 1 and np.nanstd(data) > 0:
+            sns.kdeplot(data, color=kde_color, ax=ax, linewidth=kde_linewidth)
+        else:
+            print(f"Warning: zero-variance or singleton data for KDE on axis titled '{ax.get_title()}'; skipping KDE.")
+
+    # Housing main metric
+    _plot_hist_kde(ax_h_main, housing_vals, hist_color=main_color, kde_color=sigma_color, kde_linewidth=1.75)
+    ax_h_main.set_xlabel(r'R$^2$', fontsize=13)
+    ax_h_main.set_ylabel('Density', fontsize=13)
+    ax_h_main.set_title('a.', loc='left', fontsize=18, y=1.02, x=-0.05, fontweight='bold')
+    hx0, hx1 = ax_h_main.get_xlim()
+    hspan = hx1 - hx0 if hx1 != hx0 else 1.0
+    hfrac = min(max((housing_stats['mean'] - hx0) / hspan, 0.05), 0.95)
+    _add_brace_with_text(
+        ax_h_main,
+        f"E(R²) = {housing_stats['mean']:.3f}, σ = {housing_stats['std']:.3f}",
+        xfrac=hfrac
+    )
+    _set_xlim(ax_h_main, housing_vals)
+    _pad_ylim(ax_h_main, frac=0.18)  # extra space for brace/annotation
+    legend_elements = [
+        Patch(facecolor=main_color, edgecolor='k', label='Bins', alpha=0.9),
+        Line2D([0], [0], color=sigma_color, lw=1.75, linestyle='-', label='KDE', alpha=1),
+    ]
+    ax_h_main.legend(handles=legend_elements, loc='center left', frameon=True,
+                     fontsize=11, framealpha=1, facecolor='w',
+                     edgecolor=(0, 0, 0, 1))
+
+    # Housing modeling sigma
+    _plot_hist_kde(ax_h_model, housing_model_std, hist_color=sigma_color, kde_color=main_color, kde_linewidth=1.5)
+    ax_h_model.set_xlabel(r'R$^2$: Modelling (σ)', fontsize=13)
+    ax_h_model.set_ylabel('Density', fontsize=13)
+    ax_h_model.set_title('b.', loc='left', fontsize=18, y=1.02, x=-0.05, fontweight='bold')
+    _set_xlim(ax_h_model, housing_model_std)
+
+    # Housing folding sigma
+    _plot_hist_kde(ax_h_fold, housing_fold_std, hist_color=sigma_color, kde_color=main_color, kde_linewidth=1.5)
+    ax_h_fold.set_xlabel(r'R$^2$: Folding (σ)', fontsize=13)
+    ax_h_fold.set_ylabel('Density', fontsize=13)
+    ax_h_fold.set_title('c.', loc='left', fontsize=18, y=1.02, x=-0.05, fontweight='bold')
+    _set_xlim(ax_h_fold, housing_fold_std)
+
+    # Titanic main metric (IMV)
+    _plot_hist_kde(ax_t_main, titanic_vals, hist_color=main_color, kde_color=sigma_color, kde_linewidth=1.75)
+    ax_t_main.set_xlabel('IMV', fontsize=13)
+    ax_t_main.set_ylabel('Density', fontsize=13)
+    ax_t_main.set_title('d.', loc='left', fontsize=18, y=1.02, x=-0.05, fontweight='bold')
+    tx0, tx1 = ax_t_main.get_xlim()
+    tspan = tx1 - tx0 if tx1 != tx0 else 1.0
+    tfrac = min(max((titanic_stats['mean'] - tx0) / tspan, 0.05), 0.95)
+    _add_brace_with_text(
+        ax_t_main,
+        f"E(IMV) = {titanic_stats['mean']:.3f}, σ = {titanic_stats['std']:.3f}",
+        xfrac=tfrac
+    )
+    _set_xlim(ax_t_main, titanic_vals)
+    _pad_ylim(ax_t_main, frac=0.18)  # extra space for brace/annotation
+
+    # Seed=123 vertical line on titanic main panel (prefer Modeling_Seed==123 else Folding_Seed==123)
+    seed123_rows = titanic_all[(titanic_all.get("Modeling_Seed") == 123) | (titanic_all.get("Folding_Seed") == 123)]
+    seed123_vals = _to_num(seed123_rows[metric_titanic]).dropna()
+    if not seed123_vals.empty:
+        seed123_val = float(seed123_vals.iloc[0])
+        ax_t_main.axvline(x=seed123_val, ymin=0, ymax=0.95, color='red', linestyle='--')
+        y_min, y_max = ax_t_main.get_ylim()
+        ann_y = y_min + (y_max - y_min) * 0.55
+        x0, x1 = ax_t_main.get_xlim()
+        span = x1 - x0
+        text_x = x1 - 0.22 * span  # shift left ~10% more
+        ax_t_main.annotate(f"Seed 123:\nIMV={seed123_val:.4f}",
+                           xy=(seed123_val, ann_y),
+                           xytext=(text_x, ann_y),
+                           ha='center',
+                           va='center',
+                           fontsize=12,
+                           bbox=dict(boxstyle="round,pad=0.3", edgecolor="w", facecolor="w"),
+                           arrowprops=dict(arrowstyle='->',
+                                           connectionstyle="arc3,rad=0",
+                                           color='black',
+                                           mutation_scale=20,
+                                           lw=1.5)
+                           )
+
+    # Seed-specific annotations from accuracy files
+    try:
+        housing_acc_path = Path(os.getcwd()) / ".." / "data" / "housing" / "accuracy_seeds.txt"
+        titanic_acc_path = Path(os.getcwd()) / ".." / "data" / "titanic" / "accuracy_seeds.txt"
+        seed123_rf_r2 = None
+        seed123_sgd_imv = None
+        if housing_acc_path.exists():
+            for line in housing_acc_path.read_text().splitlines():
+                if "seed=123" in line:
+                    m = re.search(r"rf_R2=([0-9.]+)", line)
+                    if m:
+                        seed123_rf_r2 = float(m.group(1))
+                        break
+        if titanic_acc_path.exists():
+            for line in titanic_acc_path.read_text().splitlines():
+                if "seed=123" in line:
+                    m = re.search(r"sgd_imv=([-0-9.]+)", line)
+                    if m:
+                        seed123_sgd_imv = float(m.group(1))
+                        break
+
+        if seed123_rf_r2 is not None:
+            ax_h_main.axvline(x=seed123_rf_r2, ymin=0, ymax=0.95, color='red', linestyle='--')
+            y_min, y_max = ax_h_main.get_ylim()
+            ann_y = y_min + (y_max - y_min) * 0.65
+            x0, x1 = ax_h_main.get_xlim()
+            span = x1 - x0
+            text_x = x1 - 0.22 * span  # shift left ~10% more
+            ax_h_main.annotate(f"Seed 123:\nRF R²={seed123_rf_r2:.4f}",
+                               xy=(seed123_rf_r2, ann_y),
+                               xytext=(text_x, ann_y),
+                               ha='center',
+                               va='center',
+                               fontsize=12,
+                               bbox=dict(boxstyle="round,pad=0.3", edgecolor="w", facecolor="w"),
+                               arrowprops=dict(arrowstyle='->',
+                                               connectionstyle="arc3,rad=0",
+                                               color='black',
+                                               mutation_scale=20,
+                                               lw=1.5)
+                               )
+
+        if seed123_sgd_imv is not None:
+            ax_t_main.axvline(x=seed123_sgd_imv, ymin=0, ymax=0.95, color='red', linestyle='--')
+            y_min, y_max = ax_t_main.get_ylim()
+            ann_y = y_min + (y_max - y_min) * 0.65
+            x0, x1 = ax_t_main.get_xlim()
+            span = x1 - x0
+            text_x = x1 - 0.22 * span  # shift left ~10% more
+            ax_t_main.annotate(f"Seed 123:\nSGD IMV={seed123_sgd_imv:.4f}",
+                               xy=(seed123_sgd_imv, ann_y),
+                               xytext=(text_x, ann_y),
+                               ha='center',
+                               va='center',
+                               fontsize=12,
+                               bbox=dict(boxstyle="round,pad=0.3", edgecolor="w", facecolor="w"),
+                               arrowprops=dict(arrowstyle='->',
+                                               connectionstyle="arc3,rad=0",
+                                               color='black',
+                                               mutation_scale=20,
+                                               lw=1.5)
+                               )
+    except Exception as e:
+        print(f"Warning: seed annotations failed: {e}")
+
+    # Titanic modeling sigma
+    if titanic_model_std.size:
+        _plot_hist_kde(ax_t_model, titanic_model_std, hist_color=sigma_color, kde_color=main_color, kde_linewidth=1.5)
+        _set_xlim(ax_t_model, titanic_model_std)
+    else:
+        ax_t_model.text(0.5, 0.5, "No within-seed variance\n(only one obs per modelling seed)",
+                        transform=ax_t_model.transAxes, ha='center', va='center', fontsize=11)
+    ax_t_model.set_xlabel('IMV: Modelling (σ)', fontsize=13)
+    ax_t_model.set_ylabel('Density', fontsize=13)
+    ax_t_model.set_title('e.', loc='left', fontsize=18, y=1.02, x=-0.05, fontweight='bold')
+
+    # Titanic folding sigma
+    if titanic_fold_std.size:
+        _plot_hist_kde(ax_t_fold, titanic_fold_std, hist_color=sigma_color, kde_color=main_color, kde_linewidth=1.5)
+        _set_xlim(ax_t_fold, titanic_fold_std)
+    else:
+        ax_t_fold.text(0.5, 0.5, "No within-seed variance\n(only one obs per folding seed)",
+                       transform=ax_t_fold.transAxes, ha='center', va='center', fontsize=11)
+    ax_t_fold.set_xlabel('IMV: Folding (σ)', fontsize=13)
+    ax_t_fold.set_ylabel('Density', fontsize=13)
+    ax_t_fold.set_title('f.', loc='left', fontsize=18, y=1.02, x=-0.05, fontweight='bold')
+
+    # Legends on second/third row, second column (center right)
+    legend_elements_sigma = [
+        Patch(facecolor=sigma_color, edgecolor='k', label='Bins', alpha=0.9),
+        Line2D([0], [0], color=main_color, lw=1.5, linestyle='-', label='KDE', alpha=1),
+    ]
+    ax_t_model.legend(handles=legend_elements_sigma, loc='center right', frameon=True,
+                      fontsize=11, framealpha=1, facecolor='w',
+                      edgecolor=(0, 0, 0, 1))
+    ax_t_fold.legend(handles=legend_elements_sigma, loc='center right', frameon=True,
+                     fontsize=11, framealpha=1, facecolor='w',
+                     edgecolor=(0, 0, 0, 1))
+
+    for ax in fig.axes:
+        ax.grid(which="both", linestyle='--', alpha=0.225)
+        ax.tick_params(axis='both', which='major', labelsize=11)
+        sns.despine(ax=ax)
+
+    plt.tight_layout()
+    plt.savefig(os.path.join(figure_path, 'housing_titanic_seed_sigma.pdf'), bbox_inches='tight')
+    return (fig, axes) if return_fig else None
 
 def download_and_resample(ticker, start, end):
     data = yf.download(ticker, start=start, end=end)
@@ -1582,6 +2142,24 @@ def plot_four_rws(figsize,
     random_walks_nasdaq = adjust_index(nasdaq_data, random_walks_nasdaq)
     random_walks_nvidia = adjust_index(nvidia_data, random_walks_nvidia)
 
+    def _print_stats(label, arr):
+        arr = np.asarray(arr, dtype=float)
+        arr = arr[~np.isnan(arr)]
+        if arr.size == 0:
+            print(f"{label}: empty")
+            return
+        mean = float(np.mean(arr))
+        amin = float(np.min(arr))
+        amax = float(np.max(arr))
+        sd = float(np.std(arr, ddof=1)) if arr.size > 1 else float("nan")
+        z = mean / sd if sd not in (0, float("nan")) else float("nan")
+        print(f"{label}: mean={mean:.4f}, min={amin:.4f}, max={amax:.4f}, sd={sd:.4f}, z={z:.4f}")
+
+    # Final-day stats
+    _print_stats("[plot_three_supplementary_rws] BTC RW final-day distribution", random_walks_btc.iloc[-1].values)
+    _print_stats("[plot_three_supplementary_rws] NASDAQ RW final-day distribution", random_walks_nasdaq.iloc[-1].values)
+    _print_stats("[plot_three_supplementary_rws] NVDA RW final-day distribution", random_walks_nvidia.iloc[-1].values)
+
     fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=figsize
                                                  )
 
@@ -1741,18 +2319,10 @@ def plot_four_rws(figsize,
     plt.savefig(os.path.join(os.getcwd(), '..', 'figures', filename + '.pdf'),
                 bbox_inches='tight')
 
-    print('The minimum USD/GDP RW forecast is:', random_walks_usuk.min(axis=1)[-1])
-    print('The maximum USD/GDP RW RW forecast is:', random_walks_usuk.max(axis=1)[-1])
-    print('The median USD/GDP RW RW forecast is:', random_walks_usuk.median(axis=1)[-1])
-    print('The minimum BTC RW forecast is:', random_walks_btc.min(axis=1)[-1])
-    print('The maximum BTC RW forecast is:', random_walks_btc.max(axis=1)[-1])
-    print('The median BTC RW forecast is:', random_walks_btc.median(axis=1)[-1])
-    print('The minimum NASDAQ RW forecast is:', random_walks_nasdaq.min(axis=1)[-1])
-    print('The maximum NASDAQ RW forecast is:', random_walks_nasdaq.max(axis=1)[-1])
-    print('The median NASDAQRW forecast is:', random_walks_nasdaq.median(axis=1)[-1])
-    print('The minimum NVIDIA RW forecast is:', random_walks_nvidia.min(axis=1)[-1])
-    print('The maximum NVIDIA RW forecast is:', random_walks_nvidia.max(axis=1)[-1])
-    print('The median NVIDIA RW forecast is:', random_walks_nvidia.median(axis=1)[-1])
+    # Final-day descriptive stats (min/mean/max/sd/z) for each random walk
+    _print_stats("[plot_three_supplementary_rws] BTC RW final-day", random_walks_btc.iloc[-1].values)
+    _print_stats("[plot_three_supplementary_rws] NASDAQ RW final-day", random_walks_nasdaq.iloc[-1].values)
+    _print_stats("[plot_three_supplementary_rws] NVDA RW final-day", random_walks_nvidia.iloc[-1].values)
 
 def load_collisions():
     chunk_size = 10000
@@ -2559,6 +3129,43 @@ def plot_ffc(ffc, figure_path=None):
 
     colormap = 'Spectral_r'
 
+    outcomes_meta = [
+        ('gpa', 'ols', 'GPA'),
+        ('grit', 'ols', 'Grit'),
+        ('materialHardship', 'ols', 'Material Hardship'),
+        ('eviction', 'logit', 'Eviction'),
+        ('jobTraining', 'logit', 'Job Training'),
+        ('layoff', 'logit', 'Layoff'),
+    ]
+
+    def _log_metric_stats(label, series, metric_name):
+        series = pd.to_numeric(series, errors='coerce').dropna()
+        if series.empty:
+            print(f"{label}: no data for {metric_name}")
+            return None
+        stats = {
+            'min': float(series.min()),
+            'max': float(series.max()),
+            'mean': float(series.mean()),
+            'std': float(series.std(ddof=0)),
+            'median': float(series.median()),
+        }
+        zscore = ((stats['median'] - stats['mean']) / stats['std']
+                  if stats['std'] else np.nan)
+        print(
+            f"{label} {metric_name}: "
+            f"min={stats['min']:.4f}, max={stats['max']:.4f}, "
+            f"mean={stats['mean']:.4f}, std={stats['std']:.4f}, "
+            f"median={stats['median']:.4f}, z-score={zscore:.4f}"
+        )
+        return stats
+
+    for outcome, account_type, pretty in outcomes_meta:
+        subset = ffc[(ffc['outcome'] == outcome) & (ffc['account'] == account_type)]
+        label = f"{pretty} ({account_type})"
+        _log_metric_stats(label, subset['beta'], 'beta')
+        _log_metric_stats(label, subset['r2_holdout'], 'pseudo-r2')
+
     gpa = ffc[(ffc['outcome'] == 'gpa') & (ffc['account'] == 'ols')]
     hb2 = ax1.hexbin(gpa['beta'], gpa['r2_holdout'], cmap=colormap, gridsize=25,
                      mincnt=1, linewidths=0, edgecolor='w')
@@ -2866,6 +3473,28 @@ def plot_mcs_pair(merged_csv_path, figsize=(14, 8), colors=None, title_a='a.', t
     max_series = df.max(axis=1).sort_values().reset_index(drop=True)
     med_series = df.median(axis=1).sort_values().reset_index(drop=True)
     all_vals = df.stack().dropna().values
+
+    # Summary stats for the distribution used in panel b
+    if all_vals.size:
+        all_vals = all_vals.astype(float)
+        mu = float(np.nanmean(all_vals))
+        sigma = float(np.nanstd(all_vals))
+        median_val = float(np.nanmedian(all_vals))
+        stats = {
+            'min': float(np.nanmin(all_vals)),
+            'max': float(np.nanmax(all_vals)),
+            'mean': mu,
+            'std': sigma,
+            'median': median_val,
+        }
+        zscore = ((median_val - mu) / sigma) if sigma else np.nan
+        print(
+            "MCS effect distribution (panel b): "
+            f"min={stats['min']:.4f}, max={stats['max']:.4f}, "
+            f"mean={stats['mean']:.4f}, std={stats['std']:.4f}, "
+            f"median={stats['median']:.4f}, z-score={zscore:.4f} "
+            f"(n={all_vals.size})"
+        )
 
     context = {
         'font.family': 'Helvetica',
@@ -3318,24 +3947,25 @@ def plot_topics_barplot(figure_path, figsize, colors = ['#001c54', '#E89818']):
     for ax in [ax1, ax2, ax3, ax4, ax5, ax6]:
         ax.set_xlim(0, None)
 
-    print(f"Science mean number of topics: {science['topics_count'].mean()}")
-    print(f"Science min number of topics: {science['topics_count'].min()}")
-    print(f"Science max number of topics: {science['topics_count'].max()}")
-    print(f"NEJM mean number of topics: {nejm['topics_count'].mean()}")
-    print(f"NEJM min number of topics: {nejm['topics_count'].min()}")
-    print(f"NEJM max number of topics: {nejm['topics_count'].max()}")
-    print(f"PNAS mean number of topics: {pnas['topics_count'].mean()}")
-    print(f"PNAS min number of topics: {pnas['topics_count'].min()}")
-    print(f"PNAS max number of topics: {pnas['topics_count'].max()}")
-    print(f"Nature mean number of topics: {nejm['topics_count'].mean()}")
-    print(f"Nature min number of topics: {nejm['topics_count'].min()}")
-    print(f"Nature max number of topics: {nejm['topics_count'].max()}")
-    print(f"SHAPE mean number of topics: {shape['topics_count'].mean()}")
-    print(f"SHAPE min number of topics: {shape['topics_count'].min()}")
-    print(f"SHAPE max number of topics: {shape['topics_count'].max()}")
-    print(f"Population Studies mean number of topics: {popstudies['topics_count'].mean()}")
-    print(f"Population Studies min number of topics: {popstudies['topics_count'].min()}")
-    print(f"Population Studies max number of topics: {popstudies['topics_count'].max()}")
+    def _print_stats(label, series):
+        arr = np.asarray(series, dtype=float)
+        arr = arr[~np.isnan(arr)]
+        if arr.size == 0:
+            print(f"{label}: empty")
+            return
+        mean = float(np.mean(arr))
+        amin = float(np.min(arr))
+        amax = float(np.max(arr))
+        sd = float(np.std(arr, ddof=1)) if arr.size > 1 else float("nan")
+        z = mean / sd if sd not in (0, float("nan")) else float("nan")
+        print(f"{label}: mean={mean:.4f}, min={amin:.4f}, max={amax:.4f}, sd={sd:.4f}, z={z:.4f}")
+
+    _print_stats("Science topics", science['topics_count'])
+    _print_stats("NEJM topics", nejm['topics_count'])
+    _print_stats("PNAS topics", pnas['topics_count'])
+    _print_stats("Nature topics", nature['topics_count'])
+    _print_stats("SHAPE topics", shape['topics_count'])
+    _print_stats("Population Studies topics", popstudies['topics_count'])
 
     ax1.set_ylabel('Count: Science', fontsize=14)
     ax2.set_ylabel('Count: NEJM', fontsize=14)
@@ -3732,12 +4362,31 @@ def plot_five_models(
     if len(palette) < 4:
         palette += [palette[-1]] * (4 - len(palette))
 
+    def _print_stats(label, arr):
+        arr = np.asarray(arr, dtype=float)
+        arr = arr[~np.isnan(arr)]
+        if arr.size == 0:
+            print(f"{label}: empty")
+            return
+        mean = float(np.mean(arr))
+        amin = float(np.min(arr))
+        amax = float(np.max(arr))
+        sd = float(np.std(arr, ddof=1)) if arr.size > 1 else float("nan")
+        z = mean / sd if sd not in (0, float("nan")) else float("nan")
+        print(f"{label}: mean={mean:.4f}, min={amin:.4f}, max={amax:.4f}, sd={sd:.4f}, z={z:.4f}")
+
     usuk_data = download_and_resample_yahoo(ticker="USDGBP=X", start="2022-10-01", end="2024-06-30")
     rw_usuk_path = os.path.join(os.getcwd(), "..", "data", "random_walk", "random_walks_usuk.zip")
     random_walks_usuk = pd.read_csv(rw_usuk_path, header=None, compression="zip")
     end_date = usuk_data.index[-1]
     start_date = end_date + pd.DateOffset(1)
     random_walks_usuk.index = pd.date_range(start=start_date, periods=len(random_walks_usuk), freq="D")
+    # Random-walk stats at final date
+    last_rw = random_walks_usuk.iloc[-1]
+    _print_stats(
+        "[plot_five_models] US/GBP RW final-day distribution",
+        last_rw.values,
+    )
 
     metapath = os.path.join(os.getcwd(), "..", "data", "bibliometric", "meta_data")
     science = pd.read_csv(os.path.join(metapath, "metadata_science.csv"))
@@ -3749,7 +4398,7 @@ def plot_five_models(
     schelling_conv = schelling_df[schelling_df["Step"] == "Convergence"]
     if not schelling_conv.empty:
         conv_steps = schelling_conv["Happy Count"].astype(float)
-        print(f"[plot_five_models] schelling (empty=0.3, threshold=0.3) -> min steps={conv_steps.min():.0f}, mean={conv_steps.mean():.2f}, max steps={conv_steps.max():.0f}")
+        _print_stats("[plot_five_models] schelling (empty=0.3, threshold=0.3) steps", conv_steps)
     schelling["Step"] = schelling["Step"].astype(int)
     schelling["Happy Count"] = schelling["Happy Count"].astype(float)
     schelling["Happy Count Adjusted"] = schelling.groupby("Step")["Happy Count"].transform(lambda x: x - x.mean())
@@ -3931,10 +4580,8 @@ def plot_five_models(
     fig.tight_layout()
     plt.savefig(os.path.join(os.getcwd(), "..", "figures", "five_models.pdf"), bbox_inches="tight")
 
-    print(f"Science mean number of topics: {science['topics_count'].mean()}")
-    print(f"Science min number of topics: {science['topics_count'].min()}")
-    print(f"Science max number of topics: {science['topics_count'].max()}")
-    print(f"MNIST accuracy min: {mnist['correct'].min()}, max: {mnist['correct'].max()}")
+    _print_stats("Science topics", science["topics_count"])
+    _print_stats("MNIST accuracy", mnist["correct"])
     if mnist_seed_values:
         for seed, val in mnist_seed_values.items():
             print(f"MNIST accuracy for seed {seed}: {val}")
@@ -3948,10 +4595,22 @@ def plot_five_models(
         schelling_df[schelling_df["Step"] == "Convergence"]["Happy Count"].min(),
         schelling_df[schelling_df["Step"] == "Convergence"]["Happy Count"].max(),
     )
-    print(r"Min value of $\rho_{21}$ at 2 draws:", mv_df[mv_df["draws"] == 2]["rho21"].min())
-    print(r"Max value of $\rho_{21}$ at 2 draws:", mv_df[mv_df["draws"] == 2]["rho21"].max())
-    print(r"Min value of $\rho_{21}$ at 150 draws:", mv_df[mv_df["draws"] == 150]["rho21"].min())
-    print(r"Max value of $\rho_{21}$ at 150 draws:", mv_df[mv_df["draws"] == 150]["rho21"].max())
+    def _print_mv_stats(draw):
+        subset = pd.to_numeric(mv_df.loc[mv_df["draws"] == draw, "rho21"], errors="coerce")
+        subset = subset[~subset.isna()]
+        if subset.empty:
+            print(f"rho21 @ draws={draw}: empty")
+            return
+        mean = subset.mean()
+        sd = subset.std(ddof=1) if len(subset) > 1 else float("nan")
+        z = mean / sd if sd not in (0, float("nan")) else float("nan")
+        print(
+            f"rho21 @ draws={draw}: min={subset.min():.6f}, mean={mean:.6f}, "
+            f"max={subset.max():.6f}, sd={sd:.6f}, z={z:.6f}"
+        )
+
+    _print_mv_stats(2)
+    _print_mv_stats(150)
 
 
 import os
@@ -4035,6 +4694,20 @@ def plot_schelling_examples(figsize=(8.5, 17),colors=color_list):
     import matplotlib.ticker as ticker
     from matplotlib.lines import Line2D
     from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+    import numpy as np
+
+    def _print_conv_stats(label, series):
+        series = pd.to_numeric(series, errors="coerce").dropna()
+        if series.empty:
+            print(f"{label}: no convergence rows")
+            return
+        arr = series.to_numpy(dtype=float)
+        mean = float(np.mean(arr))
+        sd = float(np.std(arr, ddof=1)) if arr.size > 1 else float("nan")
+        z = mean / sd if sd not in (0, float("nan")) else float("nan")
+        print(
+            f"{label} -> min={arr.min():.0f}, mean={mean:.2f}, max={arr.max():.0f}, sd={sd:.4f}, z={z:.4f}"
+        )
 
     fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=figsize)
 
@@ -4062,8 +4735,7 @@ def plot_schelling_examples(figsize=(8.5, 17),colors=color_list):
     df = pd.read_csv(os.path.join(os.getcwd(), '..', 'data', 'schelling', 'schelling_df_25_0.3_0.5.csv'), index_col=0)
     df1 = df[df['Step'] == 'Convergence']
     if not df1.empty:
-        conv_steps = df1['Happy Count'].astype(float)
-        print(f"[plot_schelling_examples] empty=0.3 threshold=0.5 -> min steps={conv_steps.min():.0f}, mean={conv_steps.mean():.2f}, max steps={conv_steps.max():.0f}")
+        _print_conv_stats("[plot_schelling_examples] empty=0.3 threshold=0.5 steps", df1['Happy Count'])
     df = df[df['Step'] != 'Convergence']
     df['Step'] = df['Step'].astype(int)
     df['Happy Count'] = df['Happy Count'].astype(float)
@@ -4114,8 +4786,7 @@ def plot_schelling_examples(figsize=(8.5, 17),colors=color_list):
     df = pd.read_csv(os.path.join(os.getcwd(), '..', 'data', 'schelling', 'schelling_df_25_0.5_0.3.csv'), index_col=0)
     df1 = df[df['Step'] == 'Convergence']
     if not df1.empty:
-        conv_steps = df1['Happy Count'].astype(float)
-        print(f"[plot_schelling_examples] empty=0.5 threshold=0.3 -> min steps={conv_steps.min():.0f}, mean={conv_steps.mean():.2f}, max steps={conv_steps.max():.0f}")
+        _print_conv_stats("[plot_schelling_examples] empty=0.5 threshold=0.3 steps", df1['Happy Count'])
     df = df[df['Step'] != 'Convergence']
     df['Step'] = df['Step'].astype(int)
     df['Happy Count'] = df['Happy Count'].astype(float)
@@ -4165,8 +4836,7 @@ def plot_schelling_examples(figsize=(8.5, 17),colors=color_list):
     df = pd.read_csv(os.path.join(os.getcwd(), '..', 'data', 'schelling', 'schelling_df_25_0.5_0.5.csv'), index_col=0)
     df1 = df[df['Step'] == 'Convergence']
     if not df1.empty:
-        conv_steps = df1['Happy Count'].astype(float)
-        print(f"[plot_schelling_examples] empty=0.5 threshold=0.5 -> min steps={conv_steps.min():.0f}, mean={conv_steps.mean():.2f}, max steps={conv_steps.max():.0f}")
+        _print_conv_stats("[plot_schelling_examples] empty=0.5 threshold=0.5 steps", df1['Happy Count'])
     df = df[df['Step'] != 'Convergence']
     df['Step'] = df['Step'].astype(int)
     df['Happy Count'] = df['Happy Count'].astype(float)
@@ -4496,6 +5166,18 @@ def plot_compas_recidivism():
 def plot_three_supplementary_rws(figsize,
                                  colors = ['#001c54', '#E89818', '#8b0000'],
                                  fill_color = (255 / 255, 223 / 255, 0 / 255, 5 / 255)):
+    def _print_stats(label, arr):
+        arr = np.asarray(arr, dtype=float)
+        arr = arr[~np.isnan(arr)]
+        if arr.size == 0:
+            print(f"{label}: empty")
+            return
+        mean = float(np.mean(arr))
+        amin = float(np.min(arr))
+        amax = float(np.max(arr))
+        sd = float(np.std(arr, ddof=1)) if arr.size > 1 else float("nan")
+        z = mean / sd if sd not in (0, float("nan")) else float("nan")
+        print(f"{label}: mean={mean:.4f}, min={amin:.4f}, max={amax:.4f}, sd={sd:.4f}, z={z:.4f}")
     def download_and_resample(ticker, start, end):
         data = yf.download(ticker, start=start, end=end)
         data = data.resample('D').ffill().dropna()  # Forward fill to handle any missing days
@@ -4619,9 +5301,9 @@ def plot_three_supplementary_rws(figsize,
                      random_walks_nasdaq.max(axis=1),
                      color=fill_color)
     ax3.fill_between(random_walks_nvidia.index,
-                     random_walks_nvidia.min(axis=1),
-                     random_walks_nvidia.max(axis=1),
-                     color=fill_color)
+                    random_walks_nvidia.min(axis=1),
+                    random_walks_nvidia.max(axis=1),
+                    color=fill_color)
 
     ax1.yaxis.set_major_formatter(ticker.FuncFormatter(lambda y, pos: f'${y / 1000:.0f}k'))
     ax2.yaxis.set_major_formatter(ticker.FuncFormatter(lambda y, pos: f'{y / 1:.0f}'))
@@ -4685,7 +5367,9 @@ def plot_three_supplementary_rws(figsize,
     sns.despine(ax=ax1, left=False, top=True, right=True, bottom=False)
     sns.despine(ax=ax2, left=False, top=True, right=True, bottom=False)
     sns.despine(ax=ax3, left=False, top=True, right=True, bottom=False)
-    plt.tight_layout()
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", message="This figure includes Axes that are not compatible with tight_layout")
+        plt.tight_layout()
 
 
     
@@ -4693,15 +5377,10 @@ def plot_three_supplementary_rws(figsize,
     plt.savefig(os.path.join(os.getcwd(), '..', 'figures', filename + '.pdf'),
                 bbox_inches='tight')
 
-    print('The minimum BTC RW forecast is:', random_walks_btc.min(axis=1)[-1])
-    print('The maximum BTC RW forecast is:', random_walks_btc.max(axis=1)[-1])
-    print('The median BTC RW forecast is:', random_walks_btc.median(axis=1)[-1])
-    print('The minimum NASDAQ RW forecast is:', random_walks_nasdaq.min(axis=1)[-1])
-    print('The maximum NASDAQ RW forecast is:', random_walks_nasdaq.max(axis=1)[-1])
-    print('The median NASDAQRW forecast is:', random_walks_nasdaq.median(axis=1)[-1])
-    print('The minimum NVIDIA RW forecast is:', random_walks_nvidia.min(axis=1)[-1])
-    print('The maximum NVIDIA RW forecast is:', random_walks_nvidia.max(axis=1)[-1])
-    print('The median NVIDIA RW forecast is:', random_walks_nvidia.median(axis=1)[-1])
+    # Final-day descriptive stats (min/mean/max/sd/z) for each random walk
+    _print_stats("[plot_three_supplementary_rws] BTC RW final-day", random_walks_btc.iloc[-1].values)
+    _print_stats("[plot_three_supplementary_rws] NASDAQ RW final-day", random_walks_nasdaq.iloc[-1].values)
+    _print_stats("[plot_three_supplementary_rws] NVDA RW final-day", random_walks_nvidia.iloc[-1].values)
 
 
 def plot_topics_supplement(figure_path = os.path.join(os.getcwd(),
@@ -4709,6 +5388,19 @@ def plot_topics_supplement(figure_path = os.path.join(os.getcwd(),
                                                       'figures'),
                            figsize=(14, 9),
                            colors = ['#4575b4', '#E6AC00', '#d73027']):
+    def _print_stats(label, series):
+        arr = np.asarray(series, dtype=float)
+        arr = arr[~np.isnan(arr)]
+        if arr.size == 0:
+            print(f"{label}: empty")
+            return
+        mean = float(np.mean(arr))
+        amin = float(np.min(arr))
+        amax = float(np.max(arr))
+        sd = float(np.std(arr, ddof=1)) if arr.size > 1 else float("nan")
+        z = mean / sd if sd not in (0, float("nan")) else float("nan")
+        print(f"{label}: mean={mean:.4f}, min={amin:.4f}, max={amax:.4f}, sd={sd:.4f}, z={z:.4f}")
+
     metapath = os.path.join(os.getcwd(),
                             '..',
                             'data',
@@ -4803,18 +5495,10 @@ def plot_topics_supplement(figure_path = os.path.join(os.getcwd(),
     for ax in [ax1, ax2, ax3, ax4]:
         ax.set_xlim(0, None)
 
-    print(f"NEJM mean number of topics: {nejm['topics_count'].mean()}")
-    print(f"NEJM min number of topics: {nejm['topics_count'].min()}")
-    print(f"NEJM max number of topics: {nejm['topics_count'].max()}")
-    print(f"PNAS mean number of topics: {pnas['topics_count'].mean()}")
-    print(f"PNAS min number of topics: {pnas['topics_count'].min()}")
-    print(f"PNAS max number of topics: {pnas['topics_count'].max()}")
-    print(f"Nature mean number of topics: {nejm['topics_count'].mean()}")
-    print(f"Nature min number of topics: {nejm['topics_count'].min()}")
-    print(f"Nature max number of topics: {nejm['topics_count'].max()}")
-    print(f"Population Studies mean number of topics: {popstudies['topics_count'].mean()}")
-    print(f"Population Studies min number of topics: {popstudies['topics_count'].min()}")
-    print(f"Population Studies max number of topics: {popstudies['topics_count'].max()}")
+    _print_stats("NEJM topics", nejm['topics_count'])
+    _print_stats("PNAS topics", pnas['topics_count'])
+    _print_stats("Nature topics", nature['topics_count'])
+    _print_stats("Population Studies topics", popstudies['topics_count'])
 
     ax1.set_ylabel('Count: NEJM', fontsize=14)
     ax2.set_ylabel('Count: PNAS', fontsize=14)
@@ -4944,6 +5628,19 @@ def plot_topics_supplement2(figure_path=os.path.join(os.getcwd(),
                                                      'figures'),
                             figsize=(8, 8),
                             colors=['#4575b4', '#E6AC00']):
+    def _print_stats(label, series):
+        arr = np.asarray(series, dtype=float)
+        arr = arr[~np.isnan(arr)]
+        if arr.size == 0:
+            print(f"{label}: empty")
+            return
+        mean = float(np.mean(arr))
+        amin = float(np.min(arr))
+        amax = float(np.max(arr))
+        sd = float(np.std(arr, ddof=1)) if arr.size > 1 else float("nan")
+        z = mean / sd if sd not in (0, float("nan")) else float("nan")
+        print(f"{label}: mean={mean:.4f}, min={amin:.4f}, max={amax:.4f}, sd={sd:.4f}, z={z:.4f}")
+
     metapath = os.path.join(os.getcwd(),
                             '..',
                             'data',
@@ -5010,6 +5707,4 @@ def plot_topics_supplement2(figure_path=os.path.join(os.getcwd(),
     plt.savefig(os.path.join(figure_path, filename + '.pdf'),
                 bbox_inches='tight')
 
-    print(f"SHAPE mean number of topics: {shape['topics_count'].mean()}")
-    print(f"SHAPE min number of topics: {shape['topics_count'].min()}")
-    print(f"SHAPE max number of topics: {shape['topics_count'].max()}")
+    _print_stats("SHAPE topics", shape['topics_count'])
