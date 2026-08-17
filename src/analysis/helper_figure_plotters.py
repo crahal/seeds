@@ -4919,11 +4919,14 @@ def plot_compas_recidivism():
     data_dir  = "../data/compass/results"
     plot_dir  = os.path.join('../figures'); os.makedirs(plot_dir, exist_ok=True)
 
-    # Prefer the canonical 10000/2 file; else pick the most recent match.
-    default_pred = os.path.join(data_dir, "uid_oof_predictions_10000seeds_rf_lr_nn_compas_2folds.csv")
-    if os.path.exists(default_pred):
-        pred_path = default_pred
-    else:
+    # Prefer the S5 workflow's requested 1,000-run visualisation.  Retain the
+    # historical 10,000-seed file as a compatibility fallback.
+    preferred = [
+        os.path.join(data_dir, "uid_oof_predictions_1000seeds_rf_lr_nn_compas_2folds.csv"),
+        os.path.join(data_dir, "uid_oof_predictions_10000seeds_rf_lr_nn_compas_2folds.csv"),
+    ]
+    pred_path = next((path for path in preferred if os.path.exists(path)), None)
+    if pred_path is None:
         cand = glob.glob(os.path.join(data_dir, "uid_oof_predictions_*seeds_rf_lr_nn_compas_*folds.csv"))
         if not cand:
             raise FileNotFoundError("No predictions CSV found in ./outputs/data/.")

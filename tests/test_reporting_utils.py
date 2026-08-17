@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -17,7 +18,12 @@ from reporting_utils import (  # noqa: E402
     crossed_s5_diagnostics,
     format_s5_report,
     observed_seed_summary,
+    parallel_chunk_ranges,
+    partitioned_bootstrap_index_blocks,
+    resolve_batch_size,
+    resolve_worker_count,
     seed_component_blocks,
+    validate_s5_log,
 )
 
 
@@ -129,10 +135,51 @@ class ReproducibilityHelperTests(unittest.TestCase):
         np.testing.assert_array_equal(result["folding"], [2, 3, 4])
         np.testing.assert_array_equal(result["modeling"], [5, 6, 7])
 
+    def test_partitioned_bootstraps_use_reproducible_child_streams(self) -> None:
+        first = partitioned_bootstrap_index_blocks(
+            {"train": 7, "test": 4}, [11, 22]
+        )
+        second = partitioned_bootstrap_index_blocks(
+            {"train": 7, "test": 4}, np.array([11, 22], dtype=np.uint64)
+        )
+        self.assertEqual(first["train"].shape, (2, 7))
+        self.assertEqual(first["test"].shape, (2, 4))
+        np.testing.assert_array_equal(first["train"], second["train"])
+        np.testing.assert_array_equal(first["test"], second["test"])
+        self.assertFalse(np.array_equal(first["train"][:, :4], first["test"]))
+
     def test_observed_summary_uses_sample_sd(self) -> None:
         result = observed_seed_summary([1.0, 2.0, 3.0])
         self.assertEqual(result.observed_data_seed_average, 2.0)
         self.assertEqual(result.observed_between_seed_sd, 1.0)
+
+    def test_parallel_helpers_balance_work_and_resolve_auto_values(self) -> None:
+        self.assertGreaterEqual(resolve_worker_count(-1), 1)
+        self.assertEqual(resolve_worker_count(4, n_tasks=2), 2)
+        self.assertEqual(resolve_batch_size(10, batch_size=0, n_jobs=3), 3)
+        self.assertEqual(resolve_batch_size(10, batch_size=4, n_jobs=3), 4)
+        chunks = parallel_chunk_ranges(10, n_jobs=2, tasks_per_worker=2)
+        self.assertEqual(chunks[0][0], 0)
+        self.assertEqual(chunks[-1][1], 10)
+        self.assertEqual(
+            [index for start, stop in chunks for index in range(start, stop)],
+            list(range(10)),
+        )
+
+    def test_log_contract_requires_all_six_items_per_estimand(self) -> None:
+        report = format_s5_report(
+            crossed_s5_diagnostics(np.arange(6, dtype=float).reshape(2, 3)),
+            estimand="metric",
+            computational_details={},
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "run.log"
+            path.write_text(report, encoding="utf-8")
+            validate_s5_log(path, ("metric",))
+            path.write_text(report.replace("6. Computational details", ""),
+                            encoding="utf-8")
+            with self.assertRaises(RuntimeError):
+                validate_s5_log(path, ("metric",))
 
 
 if __name__ == "__main__":

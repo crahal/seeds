@@ -11,8 +11,8 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import math
 import platform
+import shutil
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -22,7 +22,7 @@ import joblib
 import numpy as np
 import pandas as pd
 import sklearn
-from joblib import Parallel, delayed
+from joblib import Parallel, delayed, parallel_config
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import explained_variance_score
@@ -36,9 +36,14 @@ try:  # Works both as a package import and as a directly executed script.
         crossed_s5_diagnostics,
         format_observed_seed_report,
         format_s5_report,
+        full_factorial_seed_grid,
         load_seed_list,
         observed_seed_summary,
+        parallel_chunk_ranges,
+        resolve_batch_size,
+        resolve_worker_count,
         seed_component_blocks,
+        validate_s5_log,
     )
 except ImportError:  # pragma: no cover - exercised by direct CLI execution.
     from reporting_utils import (  # type: ignore[no-redef]
@@ -48,9 +53,14 @@ except ImportError:  # pragma: no cover - exercised by direct CLI execution.
         crossed_s5_diagnostics,
         format_observed_seed_report,
         format_s5_report,
+        full_factorial_seed_grid,
         load_seed_list,
         observed_seed_summary,
+        parallel_chunk_ranges,
+        resolve_batch_size,
+        resolve_worker_count,
         seed_component_blocks,
+        validate_s5_log,
     )
 
 
@@ -72,8 +82,8 @@ class Settings:
     n_bootstrap_resamples: int = 100
     n_seed_vectors: int = 100
     n_visualization_runs: int = 1_000
-    n_jobs: int = 10
-    bootstrap_batch_size: int = 10
+    n_jobs: int = -1
+    bootstrap_batch_size: int = 0
     test_size: float = 0.30
     n_estimators: int = 25
     max_depth: int = 5
@@ -85,8 +95,9 @@ class Settings:
             raise ValueError("n_visualization_runs must be at least two")
         if self.n_jobs == 0:
             raise ValueError("n_jobs cannot be zero")
-        if self.bootstrap_batch_size < 1:
-            raise ValueError("bootstrap_batch_size must be positive")
+        resolve_worker_count(self.n_jobs)
+        if self.bootstrap_batch_size < 0:
+            raise ValueError("bootstrap_batch_size cannot be negative")
         if not 0 < self.test_size < 1:
             raise ValueError("test_size must lie strictly between zero and one")
         if self.n_estimators < 1 or self.max_depth < 1:
@@ -163,6 +174,34 @@ def make_seed_plan(seed_list: list[int], settings: Settings) -> SeedPlan:
     )
 
 
+_HOLDOUT_INDEX_CACHE: dict[tuple[int, int, float], tuple[np.ndarray, np.ndarray]] = {}
+_HOLDOUT_INDEX_CACHE_LIMIT = 256
+
+
+def _cached_holdout_indices(
+    n_observations: int, folding_seed: int, test_size: float
+) -> tuple[np.ndarray, np.ndarray]:
+    """Cache positional splits shared by every equally sized bootstrap row."""
+
+    key = (int(n_observations), int(folding_seed), float(test_size))
+    cached = _HOLDOUT_INDEX_CACHE.get(key)
+    if cached is not None:
+        return cached
+    train_index, test_index = train_test_split(
+        np.arange(n_observations),
+        test_size=test_size,
+        random_state=int(folding_seed),
+        shuffle=True,
+    )
+    train_index.flags.writeable = False
+    test_index.flags.writeable = False
+    result = (train_index, test_index)
+    if len(_HOLDOUT_INDEX_CACHE) >= _HOLDOUT_INDEX_CACHE_LIMIT:
+        _HOLDOUT_INDEX_CACHE.clear()
+    _HOLDOUT_INDEX_CACHE[key] = result
+    return result
+
+
 def _split_dataset(
     features: np.ndarray,
     target: np.ndarray,
@@ -170,12 +209,14 @@ def _split_dataset(
     folding_seed: int,
     settings: Settings,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    return train_test_split(
-        features,
-        target,
-        test_size=settings.test_size,
-        random_state=int(folding_seed),
-        shuffle=True,
+    train_index, test_index = _cached_holdout_indices(
+        len(target), int(folding_seed), settings.test_size
+    )
+    return (
+        features[train_index],
+        features[test_index],
+        target[train_index],
+        target[test_index],
     )
 
 
@@ -321,41 +362,47 @@ def run_crossed_grid(
     rf_matrix = np.full((n_bootstrap, n_seeds), np.nan, dtype=float)
     folding_seeds = seed_plan.folding[:n_seeds]
     modeling_seeds = seed_plan.modeling[:n_seeds]
+    batch_size = resolve_batch_size(
+        n_bootstrap,
+        batch_size=settings.bootstrap_batch_size,
+        n_jobs=settings.n_jobs,
+    )
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
     started = time.monotonic()
-    with Parallel(n_jobs=settings.n_jobs, prefer="processes") as parallel:
-        for start in range(0, n_bootstrap, settings.bootstrap_batch_size):
-            stop = min(start + settings.bootstrap_batch_size, n_bootstrap)
-            batch_results = parallel(
-                delayed(_evaluate_bootstrap_row)(
-                    bootstrap_index,
-                    bootstrap_indices[bootstrap_index],
-                    features,
-                    target,
-                    folding_seeds,
-                    modeling_seeds,
-                    settings,
+    with parallel_config(backend="loky", inner_max_num_threads=1):
+        with Parallel(n_jobs=settings.n_jobs) as parallel:
+            for start in range(0, n_bootstrap, batch_size):
+                stop = min(start + batch_size, n_bootstrap)
+                batch_results = parallel(
+                    delayed(_evaluate_bootstrap_row)(
+                        bootstrap_index,
+                        bootstrap_indices[bootstrap_index],
+                        features,
+                        target,
+                        folding_seeds,
+                        modeling_seeds,
+                        settings,
+                    )
+                    for bootstrap_index in range(start, stop)
                 )
-                for bootstrap_index in range(start, stop)
-            )
-            for bootstrap_index, ols_scores, rf_scores in batch_results:
-                ols_matrix[bootstrap_index] = ols_scores
-                rf_matrix[bootstrap_index] = rf_scores
+                for bootstrap_index, ols_scores, rf_scores in batch_results:
+                    ols_matrix[bootstrap_index] = ols_scores
+                    rf_matrix[bootstrap_index] = rf_scores
 
-            _atomic_save_array(
-                checkpoint_dir / "housing_crossed_ols_checkpoint.npy", ols_matrix
-            )
-            _atomic_save_array(
-                checkpoint_dir / "housing_crossed_rf_checkpoint.npy", rf_matrix
-            )
-            completed = stop * n_seeds
-            logger.info(
-                "Crossed grid: %d/%d cells complete (%.1f seconds elapsed)",
-                completed,
-                n_bootstrap * n_seeds,
-                time.monotonic() - started,
-            )
+                _atomic_save_array(
+                    checkpoint_dir / "housing_crossed_ols_checkpoint.npy", ols_matrix
+                )
+                _atomic_save_array(
+                    checkpoint_dir / "housing_crossed_rf_checkpoint.npy", rf_matrix
+                )
+                completed = stop * n_seeds
+                logger.info(
+                    "Crossed grid: %d/%d cells complete (%.1f seconds elapsed)",
+                    completed,
+                    n_bootstrap * n_seeds,
+                    time.monotonic() - started,
+                )
 
     if not np.isfinite(ols_matrix).all() or not np.isfinite(rf_matrix).all():
         raise RuntimeError("crossed experiment finished with incomplete scores")
@@ -391,11 +438,15 @@ def _evaluate_observed_rf_chunk(
     settings: Settings,
 ) -> tuple[int, np.ndarray]:
     rf_scores = np.empty(stop - start, dtype=float)
+    folding_seed = int(folding_seeds[start])
+    if not np.all(folding_seeds[start:stop] == folding_seed):
+        raise ValueError("an observed RF task must contain one folding seed")
+    split = _split_dataset(
+        features, target, folding_seed=folding_seed, settings=settings
+    )
     for local_index, seed_index in enumerate(range(start, stop)):
-        rf_scores[local_index] = evaluate_random_forest(
-            features,
-            target,
-            folding_seed=int(folding_seeds[seed_index]),
+        rf_scores[local_index] = _random_forest_score(
+            *split,
             modeling_seed=int(modeling_seeds[seed_index]),
             settings=settings,
         )
@@ -407,13 +458,9 @@ def observed_rf_seed_grid(
 ) -> tuple[np.ndarray, np.ndarray, int, int]:
     """Make a near-square full factorial with exactly ``n_runs`` pairs."""
 
-    n_modeling = math.isqrt(n_runs)
-    while n_runs % n_modeling:
-        n_modeling -= 1
-    n_folding = n_runs // n_modeling
-    folding = np.repeat(seed_plan.folding[:n_folding], n_modeling)
-    modeling = np.tile(seed_plan.modeling[:n_modeling], n_folding)
-    return folding, modeling, n_folding, n_modeling
+    return full_factorial_seed_grid(
+        seed_plan.folding, seed_plan.modeling, n_runs=n_runs
+    )
 
 
 def run_observed_seed_sweep(
@@ -427,39 +474,40 @@ def run_observed_seed_sweep(
     """Run no-bootstrap OLS and factorial RF sweeps for visualization."""
 
     n_runs = settings.n_visualization_runs
-    chunk_size = max(1, min(50, n_runs))
-    chunks = [
-        (start, min(start + chunk_size, n_runs))
-        for start in range(0, n_runs, chunk_size)
-    ]
+    ols_chunks = parallel_chunk_ranges(n_runs, n_jobs=settings.n_jobs)
     rf_folding, rf_modeling, n_folding, n_modeling = observed_rf_seed_grid(
         seed_plan, n_runs
     )
+    rf_chunks = [
+        (start, start + n_modeling)
+        for start in range(0, n_runs, n_modeling)
+    ]
     started = time.monotonic()
-    with Parallel(n_jobs=settings.n_jobs, prefer="processes") as parallel:
-        ols_results = parallel(
-            delayed(_evaluate_observed_ols_chunk)(
-                start,
-                stop,
-                features,
-                target,
-                seed_plan.folding,
-                settings,
+    with parallel_config(backend="loky", inner_max_num_threads=1):
+        with Parallel(n_jobs=settings.n_jobs) as parallel:
+            ols_results = parallel(
+                delayed(_evaluate_observed_ols_chunk)(
+                    start,
+                    stop,
+                    features,
+                    target,
+                    seed_plan.folding,
+                    settings,
+                )
+                for start, stop in ols_chunks
             )
-            for start, stop in chunks
-        )
-        rf_results = parallel(
-            delayed(_evaluate_observed_rf_chunk)(
-                start,
-                stop,
-                features,
-                target,
-                rf_folding,
-                rf_modeling,
-                settings,
+            rf_results = parallel(
+                delayed(_evaluate_observed_rf_chunk)(
+                    start,
+                    stop,
+                    features,
+                    target,
+                    rf_folding,
+                    rf_modeling,
+                    settings,
+                )
+                for start, stop in rf_chunks
             )
-            for start, stop in chunks
-        )
     ols_scores = np.empty(n_runs, dtype=float)
     rf_scores = np.empty(n_runs, dtype=float)
     for start, ols_chunk in ols_results:
@@ -552,11 +600,13 @@ def write_outputs(
             "R2": observed_ols,
         }
     )
-    rf_frame.to_csv(output_dir / "housing_outputs_rf.csv", index=False)
-    rf_frame.to_csv(output_dir / "r2.csv", index=False)
-    ols_frame.to_csv(output_dir / "housing_outputs_ols.csv", index=False)
-    rf_frame.to_csv(output_dir / "housing_visualization_rf.csv", index=False)
-    ols_frame.to_csv(output_dir / "housing_visualization_ols.csv", index=False)
+    rf_path = output_dir / "housing_outputs_rf.csv"
+    ols_path = output_dir / "housing_outputs_ols.csv"
+    rf_frame.to_csv(rf_path, index=False)
+    ols_frame.to_csv(ols_path, index=False)
+    for alias in ("r2.csv", "housing_visualization_rf.csv"):
+        shutil.copyfile(rf_path, output_dir / alias)
+    shutil.copyfile(ols_path, output_dir / "housing_visualization_ols.csv")
 
     s5_vector_number = np.arange(n_seeds)
     s5_seed_frame = pd.DataFrame(
@@ -643,8 +693,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--n-bootstrap-resamples", type=int, default=100)
     parser.add_argument("--n-seed-vectors", type=int, default=100)
     parser.add_argument("--n-visualization-runs", type=int, default=1_000)
-    parser.add_argument("--n-jobs", type=int, default=10)
-    parser.add_argument("--bootstrap-batch-size", type=int, default=10)
+    parser.add_argument(
+        "--n-jobs", type=int, default=-1,
+        help="parallel workers; -1 uses all available CPUs (default: -1)",
+    )
+    parser.add_argument(
+        "--bootstrap-batch-size", type=int, default=0,
+        help="bootstrap rows per checkpoint batch; 0 uses one worker wave",
+    )
     parser.add_argument("--test-size", type=float, default=0.30)
     parser.add_argument("--n-estimators", type=int, default=25)
     parser.add_argument("--max-depth", type=int, default=5)
@@ -686,6 +742,16 @@ def main(argv: list[str] | None = None) -> None:
     logger.info("Housing data: %s", housing_csv)
     logger.info("Seed list: %s", seed_path)
     logger.info("Run-level output directory: %s", output_dir)
+    logger.info(
+        "Parallel workers: %d (n_jobs=%d); bootstrap batch size: %d",
+        resolve_worker_count(settings.n_jobs),
+        settings.n_jobs,
+        resolve_batch_size(
+            settings.n_bootstrap_resamples,
+            batch_size=settings.bootstrap_batch_size,
+            n_jobs=settings.n_jobs,
+        ),
+    )
 
     started = time.monotonic()
     features, target = read_housing_data(housing_csv)
@@ -752,6 +818,13 @@ def main(argv: list[str] | None = None) -> None:
         ),
         "Python_version": platform.python_version(),
         "joblib_version": joblib.__version__,
+        "parallel_backend": "joblib loky processes; one inner numerical thread",
+        "parallel_workers": resolve_worker_count(settings.n_jobs),
+        "bootstrap_checkpoint_batch_size": resolve_batch_size(
+            settings.n_bootstrap_resamples,
+            batch_size=settings.bootstrap_batch_size,
+            n_jobs=settings.n_jobs,
+        ),
         "score": SCORE_NAME,
         "test_fraction": settings.test_size,
         "external_dataset_bootstrap": (
@@ -826,6 +899,7 @@ def main(argv: list[str] | None = None) -> None:
         "n_complete_observations": len(target),
         "n_features": features.shape[1],
         "settings": settings.__dict__,
+        "resolved_parallel_workers": resolve_worker_count(settings.n_jobs),
         "crossed_scores_reused_for_this_reporting_pass": bool(
             args.reuse_crossed_scores
         ),
@@ -859,6 +933,10 @@ def main(argv: list[str] | None = None) -> None:
         metadata=metadata,
     )
     write_fixed_seed_references(output_dir.parent, features, target, settings)
+    validate_s5_log(
+        log_path,
+        (f"OLS {SCORE_NAME}", f"Random forest {SCORE_NAME}"),
+    )
     logger.info(
         "All outputs validated and written in %.1f seconds",
         time.monotonic() - started,

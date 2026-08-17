@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+from joblib import effective_n_jobs
 
 
 MAX_UINT32 = 2**32 - 1
@@ -167,6 +168,134 @@ def bootstrap_index_block(
             0, n_observations, size=draw_size, dtype=np.int64
         )
     return indices
+
+
+def partitioned_bootstrap_index_blocks(
+    partition_sizes: Mapping[str, int],
+    bootstrap_seeds: Sequence[int],
+) -> dict[str, np.ndarray]:
+    """Draw independent bootstrap blocks for fixed dataset partitions.
+
+    One ``SeedSequence`` is created per external-bootstrap replicate and
+    spawned into one PCG64 child stream per named partition.  Consequently,
+    callers can preserve roles such as train/test while still treating the
+    pair of resamples as one shared ``D_b*`` row reused across every model
+    seed.
+    """
+
+    sizes = tuple(partition_sizes.items())
+    if not sizes or len({name for name, _ in sizes}) != len(sizes):
+        raise ValueError("partition_sizes must have unique named partitions")
+    for name, size in sizes:
+        if not name or not isinstance(size, int) or isinstance(size, bool) or size < 1:
+            raise ValueError(f"partition size for {name!r} must be a positive integer")
+    if len(bootstrap_seeds) == 0:
+        raise ValueError("at least one bootstrap seed is required")
+
+    blocks = {
+        name: np.empty((len(bootstrap_seeds), size), dtype=np.int64)
+        for name, size in sizes
+    }
+    for row, seed in enumerate(bootstrap_seeds):
+        if not 0 <= int(seed) <= MAX_UINT32:
+            raise ValueError("bootstrap seeds must be uint32-compatible")
+        children = np.random.SeedSequence(int(seed)).spawn(len(sizes))
+        for (name, size), child in zip(sizes, children, strict=True):
+            rng = np.random.Generator(np.random.PCG64(child))
+            blocks[name][row] = rng.integers(0, size, size=size, dtype=np.int64)
+    return blocks
+
+
+def full_factorial_seed_grid(
+    first_component: Sequence[int] | np.ndarray,
+    second_component: Sequence[int] | np.ndarray,
+    *,
+    n_runs: int,
+) -> tuple[np.ndarray, np.ndarray, int, int]:
+    """Build a near-square two-component full factorial of exactly ``n_runs``.
+
+    The smaller factor is chosen as the largest divisor no greater than
+    ``sqrt(n_runs)``.  For example, 1,000 runs become 40 values of the first
+    component crossed with 25 values of the second component.  This is useful
+    for visualisation sweeps that must retain within-component replication.
+    """
+
+    if n_runs < 1:
+        raise ValueError("n_runs must be positive")
+    n_second = math.isqrt(n_runs)
+    while n_runs % n_second:
+        n_second -= 1
+    n_first = n_runs // n_second
+
+    first = np.asarray(first_component)
+    second = np.asarray(second_component)
+    if first.ndim != 1 or second.ndim != 1:
+        raise ValueError("seed components must be one-dimensional")
+    if first.size < n_first or second.size < n_second:
+        raise ValueError(
+            "seed components are too short for the requested factorial: "
+            f"need {n_first} and {n_second}, got {first.size} and {second.size}"
+        )
+
+    return (
+        np.repeat(first[:n_first], n_second),
+        np.tile(second[:n_second], n_first),
+        n_first,
+        n_second,
+    )
+
+
+def resolve_worker_count(n_jobs: int, *, n_tasks: int | None = None) -> int:
+    """Resolve joblib worker syntax and optionally cap it to useful work.
+
+    ``n_jobs=-1`` uses every CPU available to the process. Other negative
+    values retain joblib's usual "all CPUs minus N" interpretation.
+    """
+
+    if n_jobs == 0:
+        raise ValueError("n_jobs cannot be zero")
+    workers = effective_n_jobs(n_jobs)
+    if n_tasks is not None:
+        if n_tasks < 1:
+            raise ValueError("n_tasks must be positive")
+        workers = min(workers, n_tasks)
+    return max(1, workers)
+
+
+def resolve_batch_size(
+    n_items: int, *, batch_size: int, n_jobs: int
+) -> int:
+    """Resolve a zero (automatic) batch to one wave of parallel work."""
+
+    if n_items < 1:
+        raise ValueError("n_items must be positive")
+    if batch_size < 0:
+        raise ValueError("batch_size cannot be negative")
+    if batch_size == 0:
+        return resolve_worker_count(n_jobs, n_tasks=n_items)
+    return min(n_items, batch_size)
+
+
+def parallel_chunk_ranges(
+    n_items: int,
+    *,
+    n_jobs: int,
+    tasks_per_worker: int = 4,
+    max_chunk_size: int = 50,
+) -> list[tuple[int, int]]:
+    """Create balanced contiguous chunks with enough tasks for load balancing."""
+
+    if n_items < 1:
+        raise ValueError("n_items must be positive")
+    if tasks_per_worker < 1 or max_chunk_size < 1:
+        raise ValueError("chunk controls must be positive")
+    workers = resolve_worker_count(n_jobs, n_tasks=n_items)
+    target_tasks = min(n_items, workers * tasks_per_worker)
+    chunk_size = min(max_chunk_size, math.ceil(n_items / target_tasks))
+    return [
+        (start, min(start + chunk_size, n_items))
+        for start in range(0, n_items, chunk_size)
+    ]
 
 
 def crossed_s5_diagnostics(score_matrix: np.ndarray) -> S5Diagnostics:
@@ -411,6 +540,44 @@ def configure_run_logger(name: str, path: str | Path) -> logging.Logger:
     return logger
 
 
+def validate_s5_log(path: str | Path, estimands: Sequence[str]) -> None:
+    """Require a complete six-item S5 report block for every estimand."""
+
+    report_path = Path(path)
+    text = report_path.read_text(encoding="utf-8")
+    headings = (
+        "1. Seed-averaged estimate",
+        "2. Data uncertainty",
+        "3. Bias-corrected between-seed variability",
+        "4. Relative importance of algorithmic randomness",
+        "5. Algorithmic variance share",
+        "6. Computational details",
+    )
+    markers = [
+        f"S5 recommended reporting and diagnostics: {estimand}"
+        for estimand in estimands
+    ]
+    if not markers:
+        raise ValueError("at least one estimand is required")
+    for marker in markers:
+        start = text.find(marker)
+        if start < 0:
+            raise RuntimeError(f"S5 log is missing estimand block: {marker}")
+        following = [
+            position
+            for other in markers
+            if other != marker and (position := text.find(other, start + len(marker))) >= 0
+        ]
+        stop = min(following, default=len(text))
+        block = text[start:stop]
+        missing = [heading for heading in headings if heading not in block]
+        if missing:
+            raise RuntimeError(
+                f"S5 log block for {marker!r} is incomplete; missing: "
+                + ", ".join(missing)
+            )
+
+
 __all__ = [
     "ObservedSeedSummary",
     "S5Diagnostics",
@@ -419,7 +586,13 @@ __all__ = [
     "crossed_s5_diagnostics",
     "format_observed_seed_report",
     "format_s5_report",
+    "full_factorial_seed_grid",
     "load_seed_list",
     "observed_seed_summary",
+    "parallel_chunk_ranges",
+    "partitioned_bootstrap_index_blocks",
+    "resolve_batch_size",
+    "resolve_worker_count",
     "seed_component_blocks",
+    "validate_s5_log",
 ]
